@@ -23,14 +23,37 @@ BODY {
     content: counters(item, ".") ". ";
     counter-increment: item;
 }
+div.nav {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+}
+.nav-top {
+    padding: 0.5em 0;
+    border-bottom: 1px solid #3E4349;
+}
+.nav-bottom {
+    padding: 0.5em 0;
+    margin: 3em 0;
+    border-top: 1px solid #3E4349;
+}
+.nav-back, .nav-home, .nav-forward {
+    flex: 1;
+}
+.nav-back {
+    text-align: left;
+}
+.nav-home {
+    text-align: center;
+}
+.nav-forward {
+    text-align: right;
+}
 div>ul>li, div>ol>li { /* top level */
     padding: 0.5em 0;
 }
 figure {
     padding: 1em 0;
-}
-div#backnav {
-    margin-bottom: 2em;
 }
 figcaption {
     padding-top: 0.5em;
@@ -85,6 +108,8 @@ PRE {
     padding: 8px;
     font-family: 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', monospace;
 }
+
+
 
 table, td, th {
     border: 1px solid black;
@@ -198,11 +223,6 @@ div.butt {
     position: fixed;
     top: 0;
     left: 0;
-}
-
-div#footer {
-    padding: 2em 0;
-    border-top: 1px solid #3E4349;
 }
 
 blockquote {
