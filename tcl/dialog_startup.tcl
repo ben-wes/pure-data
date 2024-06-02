@@ -174,7 +174,7 @@ proc ::dialog_startup::fill_frame {frame} {
         foreach ext {{} .exe .com} {
             set x [file join $basedir $bindir ${exe}${ext}]
             if {[file executable $x]} {
-                lappend pdexecs [list [_ "double (64bit) EXPERIMENTAL"] 64]
+                lappend pdexecs [list [_ "double (64bit) BETA"] 64]
                 # the next line is just for the translations
                 set x [_ "double (64bit)" ]
                 break
