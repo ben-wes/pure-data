@@ -1245,7 +1245,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     t_soundfile sf = {0};
     int fd = -1, resize = 0, ascii = 0, raw = 0, i;
     size_t skipframes = 0, finalsize = 0, maxsize = SFMAXFRAMES,
-           framesread = 0, bufframes, j;
+           framesread = 0, onsetframes = 0, bufframes, j;
     ssize_t nframes, framesinfile;
     char endianness;
     const char *filename;
@@ -1265,6 +1265,14 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
                 (argv[1].a_w.w_float) < 0)
                     goto usage;
             skipframes = argv[1].a_w.w_float;
+            argc -= 2; argv += 2;
+        }
+        else if (!strcmp(flag, "onset"))
+        {
+            if (argc < 2 || argv[1].a_type != A_FLOAT ||
+                (argv[1].a_w.w_float) < 0)
+                    goto usage;
+            onsetframes = argv[1].a_w.w_float;
             argc -= 2; argv += 2;
         }
         else if (!strcmp(flag, "ascii"))
@@ -1412,12 +1420,12 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
         for (i = 0; i < argc; i++)
         {
             int vecsize;
-            garray_resize_long(garrays[i], finalsize);
+            garray_resize_long(garrays[i], onsetframes + finalsize);
                 /* for sanity's sake let's clear the save-in-patch flag here */
             garray_setsaveit(garrays[i], 0);
             if (!garray_getfloatwords(garrays[i], &vecsize, &vecs[i])
                 /* if the resize failed, garray_resize reported the error */
-                || (vecsize != framesinfile))
+                || (vecsize != onsetframes + finalsize))
             {
                 pd_error(x, "[soundfiler] read: resize failed");
                 goto done;
@@ -1455,7 +1463,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
         nframes = read(sf.sf_fd, sampbuf,
             thisread * sf.sf_bytesperframe) / sf.sf_bytesperframe;
         if (nframes <= 0) break;
-        soundfile_xferin_words(&sf, argc, vecs, framesread,
+        soundfile_xferin_words(&sf, argc, vecs, framesread + onsetframes,
             (unsigned char *)sampbuf, nframes);
         framesread += nframes;
     }
@@ -1466,13 +1474,17 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
 %ld points but file was truncated to %ld",
             filename, (long)finalsize, (long)framesread);
     }
-        /* zero out remaining elements of vectors */
-    for (i = 0; i < argc; i++)
+        /** zero out remaining elements of vectors 
+            if not using onset or maxsize */
+    if (onsetframes == 0 && maxsize == SFMAXFRAMES)
     {
-        int vecsize;
-        if (garray_getfloatwords(garrays[i], &vecsize, &vecs[i]))
-            for (j = framesread; j < (size_t)vecsize; j++)
-                vecs[i][j].w_float = 0;
+        for (i = 0; i < argc; i++)
+        {
+            int vecsize;
+            if (garray_getfloatwords(garrays[i], &vecsize, &vecs[i]))
+                for (j = onsetframes + framesread; j < (size_t)vecsize; j++)
+                    vecs[i][j].w_float = 0;
+        }
     }
         /* zero out vectors in excess of number of channels */
     for (i = sf.sf_nchannels; i < argc; i++)
@@ -1489,7 +1501,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     goto done;
 usage:
     pd_error(x, "[soundfiler]: usage; read [flags] filename [tablename]...");
-    post("flags: -skip <n> -resize -maxsize <n> -nframes <n> %s -ascii ...", sf_typeargs);
+    post("flags: -skip <n> -resize -maxsize <n> -nframes <n> -onset <n> %s -ascii ...", sf_typeargs);
     post("-raw <headerbytes> <channels> <bytespersample> <endian (b, l, or n)>");
     post("(-ascii flag can only be combined with -resize)");
 done:
