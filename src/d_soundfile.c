@@ -1309,14 +1309,15 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
             resize = 1;
             argc -= 1; argv += 1;
         }
-        else if (!strcmp(flag, "maxsize"))
+        else if (!strcmp(flag, "maxsize") || !strcmp(flag, "nframes"))
         {
             if (argc < 2 || argv[1].a_type != A_FLOAT ||
                 argv[1].a_w.w_float < 0)
                     goto usage;
             maxsize = (double)argv[1].a_w.w_float > (double)SFMAXFRAMES ?
                 SFMAXFRAMES : (size_t)argv[1].a_w.w_float;
-            resize = 1;     /* maxsize implies resize */
+            if (!strcmp(flag, "maxsize"))
+                resize = 1;     /* maxsize implies resize */
             argc -= 2; argv += 2;
         }
         else
@@ -1427,6 +1428,8 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     if (!finalsize) finalsize = SFMAXFRAMES;
     if (framesinfile >= 0 && finalsize > (size_t)framesinfile)
         finalsize = framesinfile;
+    if (finalsize > maxsize)
+        finalsize = maxsize;
 
         /* no tablenames, try to use header info instead of reading */
     if (argc == 0 &&
@@ -1486,7 +1489,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     goto done;
 usage:
     pd_error(x, "[soundfiler]: usage; read [flags] filename [tablename]...");
-    post("flags: -skip <n> -resize -maxsize <n> %s -ascii ...", sf_typeargs);
+    post("flags: -skip <n> -resize -maxsize <n> -nframes <n> %s -ascii ...", sf_typeargs);
     post("-raw <headerbytes> <channels> <bytespersample> <endian (b, l, or n)>");
     post("(-ascii flag can only be combined with -resize)");
 done:
