@@ -1229,9 +1229,12 @@ done:
        usage: read [flags] filename [tablename] ...
        flags:
            -skip <frames> ... frames to skip in file
+           -onset <frames> ... onset when writing to array
            -raw <headersize channels bytespersample endian>
            -resize
-           -maxsize <maxsize>
+           -normalize
+           -nframes <frames> ... frames to read
+           -maxsize <frames> ... with implicit resize
            -wave
            -aiff
            -caf
@@ -1243,7 +1246,13 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     int argc, t_atom *argv)
 {
     t_soundfile sf = {0};
-    int fd = -1, resize = 0, ascii = 0, raw = 0, normalize = 0, i;
+    int fd = -1, ascii = 0, raw = 0, normalize = 0, i;
+    enum resize_mode {
+        RESIZE_NONE = 0,
+        RESIZE_FIT,      /* -resize: fit to file size */
+        RESIZE_MAX,      /* -maxsize: fit to file size with max limit */
+        RESIZE_EXACT     /* -nframes: exact size specified with nframes */
+    } resize = RESIZE_NONE;
     size_t skipframes = 0, finalsize = 0, maxsize = SFMAXFRAMES,
            framesread = 0, onsetframes = 0, bufframes, j;
     ssize_t nframes, framesinfile;
@@ -1280,7 +1289,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
             if (sf.sf_headersize >= 0)
                 post("'-ascii' overridden by '-raw'");
             ascii = 1;
-            argc--; argv++;
+            argc -= 1; argv += 1;
         }
         else if (!strcmp(flag, "raw"))
         {
@@ -1314,7 +1323,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
         }
         else if (!strcmp(flag, "resize"))
         {
-            resize = 1;
+            resize = (maxsize < SFMAXFRAMES) ? RESIZE_EXACT : RESIZE_FIT;
             argc -= 1; argv += 1;
         }
         else if (!strcmp(flag, "maxsize") || !strcmp(flag, "nframes"))
@@ -1325,7 +1334,9 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
             maxsize = (double)argv[1].a_w.w_float > (double)SFMAXFRAMES ?
                 SFMAXFRAMES : (size_t)argv[1].a_w.w_float;
             if (!strcmp(flag, "maxsize"))
-                resize = 1;     /* maxsize implies resize */
+                resize = RESIZE_MAX;          /* maxsize implies resize */
+            else if (resize)                  /* nframes: only set EXACT if resize requested */
+                resize = RESIZE_EXACT;
             argc -= 2; argv += 2;
         }
         else if (!strcmp(flag, "normalize"))
@@ -1379,7 +1390,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
         if (finalsize && finalsize != (size_t)vecsize && !resize)
         {
             post("arrays have different lengths, resizing...");
-            resize = 1;
+            resize = RESIZE_FIT;
         }
         finalsize = vecsize;
     }
@@ -1415,13 +1426,16 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     if (resize)
     {
             /* figure out what to resize to using header info */
-        if ((size_t)framesinfile > maxsize)
+        if ((size_t)framesinfile > maxsize || resize == RESIZE_EXACT)
         {
-            pd_error(x, "[soundfiler] read: truncated to %ld elements",
-                (long)maxsize);
-            framesinfile = maxsize;
+            if (resize == RESIZE_MAX)
+                pd_error(x, "[soundfiler] read: truncated to %ld elements",
+                    (long)maxsize);
+            finalsize = maxsize;
         }
-        finalsize = framesinfile;
+            /* RESIZE_FIT or RESIZE_MAX with smaller file */
+        else
+            finalsize = framesinfile;
         for (i = 0; i < argc; i++)
         {
             int vecsize;
@@ -1439,10 +1453,10 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     }
 
     if (!finalsize) finalsize = SFMAXFRAMES;
+    if (!resize && maxsize < SFMAXFRAMES && finalsize > maxsize)
+        finalsize = maxsize;
     if (framesinfile >= 0 && finalsize > (size_t)framesinfile)
         finalsize = framesinfile;
-    if (finalsize > maxsize)
-        finalsize = maxsize;
 
         /* no tablenames, try to use header info instead of reading */
     if (argc == 0 &&
@@ -1479,9 +1493,12 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
 %ld points but file was truncated to %ld",
             filename, (long)finalsize, (long)framesread);
     }
-        /** zero out remaining elements of vectors 
-            if not using onset or maxsize */
-    if (onsetframes == 0 && maxsize == SFMAXFRAMES)
+        /** zero out remaining elements of vectors:
+            - in default case (no flags)
+            - with -nframes up to specified size
+            - but not when using -onset */
+    if ((resize == RESIZE_NONE && onsetframes == 0) ||
+        (resize == RESIZE_EXACT && (size_t)framesinfile < maxsize))
     {
         for (i = 0; i < argc; i++)
         {
