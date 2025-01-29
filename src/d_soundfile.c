@@ -1243,7 +1243,7 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
     int argc, t_atom *argv)
 {
     t_soundfile sf = {0};
-    int fd = -1, resize = 0, ascii = 0, raw = 0, i;
+    int fd = -1, resize = 0, ascii = 0, raw = 0, normalize = 0, i;
     size_t skipframes = 0, finalsize = 0, maxsize = SFMAXFRAMES,
            framesread = 0, onsetframes = 0, bufframes, j;
     ssize_t nframes, framesinfile;
@@ -1327,6 +1327,11 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
             if (!strcmp(flag, "maxsize"))
                 resize = 1;     /* maxsize implies resize */
             argc -= 2; argv += 2;
+        }
+        else if (!strcmp(flag, "normalize"))
+        {
+            normalize = 1;
+            argc -= 1; argv += 1;
         }
         else
         {
@@ -1495,13 +1500,46 @@ static void soundfiler_read(t_soundfiler *x, t_symbol *s,
             for (j = 0; j < (size_t)vecsize; j++)
                 foo[j].w_float = 0;
     }
+        /* normalize using max amplitude across channels */
+    if (normalize && framesread > 0)
+    {
+        double maxv = 0;
+        for (i = 0; i < argc; i++)
+        {
+            int vecsize;
+            if (garray_getfloatwords(garrays[i], &vecsize, &vecs[i]))
+            {
+                for (j = onsetframes; j < onsetframes + framesread; j++)
+                {
+                    double v = vecs[i][j].w_float;
+                    if (v > maxv)
+                        maxv = v;
+                    if (-v > maxv)
+                        maxv = -v;
+                }
+            }
+        }
+        if (maxv > 0)
+        {
+            double renormer = 1.0 / maxv;
+            for (i = 0; i < argc; i++)
+            {
+                int vecsize;
+                if (garray_getfloatwords(garrays[i], &vecsize, &vecs[i]))
+                {
+                    for (j = onsetframes; j < onsetframes + framesread; j++)
+                        vecs[i][j].w_float *= renormer;
+                }
+            }
+        }
+    }
         /* do all graphics updates */
     for (i = 0; i < argc; i++)
         garray_redraw(garrays[i]);
     goto done;
 usage:
     pd_error(x, "[soundfiler]: usage; read [flags] filename [tablename]...");
-    post("flags: -skip <n> -resize -maxsize <n> -nframes <n> -onset <n> %s -ascii ...", sf_typeargs);
+    post("flags: -skip <n> -resize -maxsize <n> -nframes <n> -onset <n> -normalize %s -ascii ...", sf_typeargs);
     post("-raw <headerbytes> <channels> <bytespersample> <endian (b, l, or n)>");
     post("(-ascii flag can only be combined with -resize)");
 done:
