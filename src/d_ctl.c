@@ -222,10 +222,12 @@ static t_int *vline_tilde_perform(t_int *w)
     t_sample *out = (t_sample *)(w[2]);
     int n = (int)(w[3]), i;
     double f = x->x_value;
-    double inc = x->x_inc;
+    double inc = x->x_inc, fullinc;
+    int needsincreset = 0;
     double msecpersamp = x->x_msecpersamp;
     double timenow, logicaltimenow = clock_gettimesince(x->x_referencetime);
     t_vseg *s = x->x_list;
+
     if (logicaltimenow != x->x_lastlogicaltime)
     {
         int sampstotime = (n > DEFDACBLKSIZE ? n : DEFDACBLKSIZE);
@@ -255,8 +257,22 @@ static t_int *vline_tilde_perform(t_int *w)
                 {
                     double incpermsec = (s->s_target - f)/
                         (s->s_targettime - s->s_starttime);
-                    f = f + incpermsec * (timenext - s->s_starttime);
+                    double elapsed = timenext - s->s_starttime;
                     inc = incpermsec * msecpersamp;
+                    if (pd_compatibilitylevel < 56)
+                            /* compatibility with Pd<=0.55:
+                            increment (fractional) first step immediately */
+                        f = f + incpermsec * elapsed;
+                    else
+                    {
+                            /* apply (fractional) first step as regular increment */
+                        if (elapsed > 0 && timenext < s->s_targettime)
+                        {
+                            fullinc = inc;
+                            inc = incpermsec * elapsed;
+                            needsincreset = 1;
+                        }
+                    }
                 }
                 x->x_inc = inc;
                 x->x_target = s->s_target;
@@ -271,6 +287,12 @@ static t_int *vline_tilde_perform(t_int *w)
             f = x->x_target, inc = x->x_inc = 0, x->x_targettime = 1e20;
         *out++ = f;
         f = f + inc;
+        if (needsincreset)
+        {
+            needsincreset = 0;
+            inc = fullinc;
+            x->x_inc = inc;
+        }
         timenow = timenext;
     }
     x->x_value = f;
