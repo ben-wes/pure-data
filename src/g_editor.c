@@ -4360,13 +4360,14 @@ static void canvas_cycleselect(t_canvas*x, t_float foffset)
         }
         return;
     }
-    if (x->gl_editor->e_selection)
+    
+        /* exactly one object selected */
+    if (x->gl_editor->e_selection && !x->gl_editor->e_selection->sel_next)
     {
             /* cycle the selection to the next object */
         int newindex;
         int objectcount = glist_getindex(x, 0);
-            /* only cycle selection if the current selection contains exactly 1 item */
-        t_gobj* y = x->gl_editor->e_selection->sel_next ? 0 : x->gl_editor->e_selection->sel_what;
+        t_gobj* y = x->gl_editor->e_selection->sel_what;
         if (!y || !objectcount)
             return;
         newindex = (glist_getindex(x, y) + offset) % objectcount;
@@ -4375,6 +4376,49 @@ static void canvas_cycleselect(t_canvas*x, t_float foffset)
         glist_select(x, glist_nth(x, newindex));
         return;
     }
+    
+        /* multiple objects selected */
+    if (x->gl_editor->e_selection && x->gl_editor->e_selection->sel_next)
+    {
+        if (x->gl_editor->e_selectedline)
+            glist_deselectline(x);
+        
+        int objectcount = glist_getindex(x, 0);
+        if (!objectcount)
+            return;
+        
+            /* find lowest and highest indices among selected objects */
+        int lowestindex = objectcount - 1;
+        int highestindex = 0;
+        t_selection *sel = x->gl_editor->e_selection;
+        while (sel) {
+            int idx = glist_getindex(x, sel->sel_what);
+            if (idx < lowestindex) lowestindex = idx;
+            if (idx > highestindex) highestindex = idx;
+            sel = sel->sel_next;
+        }
+        
+            /* Tab selects lowest index object
+             * Shift+Tab select highest index object
+             */
+        int newindex = (offset > 0) ? lowestindex : highestindex;
+        
+        glist_noselect(x);
+        glist_select(x, glist_nth(x, newindex));
+        return;
+    }
+
+        /* without prior selection, select first or last object */
+    if (!x->gl_editor->e_selection && !x->gl_editor->e_selectedline)
+    {
+        int objectcount = glist_getindex(x, 0);
+        if (objectcount > 0) {
+            int newindex = (offset > 0) ? 0 : objectcount - 1;
+            glist_select(x, glist_nth(x, newindex));
+        }
+        return;
+    }
+
     if (x->gl_editor->e_selectedline)
     {
             /* if (only) a line is selected, cycle to next line */
