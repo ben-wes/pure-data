@@ -317,8 +317,11 @@ proc ::pd_bindings::patch_bindings {mytoplevel} {
     # window protocol bindings
     wm protocol $mytoplevel WM_DELETE_WINDOW "pdsend \"$mytoplevel menuclose 0\""
     bind $tkcanvas <Destroy> "::pd_bindings::patch_destroy %W"
-}
 
+    # <Return> and <Modifier-Return> to edit object text and confirm
+    bind $tkcanvas <KeyPress-Return>              "::pd_bindings::canvas_objtext %W edit"
+    bind $tkcanvas <$::modifier-KeyPress-Return>  "::pd_bindings::canvas_objtext %W apply"
+}
 
 #------------------------------------------------------------------------------#
 # event handlers
@@ -335,6 +338,7 @@ proc ::pd_bindings::handle_modifier_click {window x y button modifier} {
     }
     pdtk_canvas_mouse $window $x $y $button $modifier
 }
+
 
 # do tasks when changing focus (Window menu, scrollbars, etc.)
 proc ::pd_bindings::window_focusin {mytoplevel} {
@@ -433,11 +437,25 @@ proc ::pd_bindings::window_destroy {winid} {
     }
 }
 
-
 # (Shift-)Tab for cycling through selection
 proc ::pd_bindings::canvas_cycle {mytoplevel cycledir key iso shift {keycode ""}} {
     menu_send_float $mytoplevel cycleselect $cycledir
     ::pd_bindings::sendkey $mytoplevel 1 $key $iso $shift $keycode
+}
+
+# Return and Modifier-Return for object text actions
+proc ::pd_bindings::canvas_objtext {mytoplevel action} {
+    if {$action eq "edit"} {
+        if {$::editingtext($::focused_window) == 0} {
+            menu_send $mytoplevel objtext_edit
+            return -code break
+        }
+    } elseif {$action eq "apply"} {
+        if {$::editingtext($::focused_window) == 1} {
+            menu_send $mytoplevel objtext_apply
+            return -code break
+        }
+    }
 }
 
 #------------------------------------------------------------------------------#
