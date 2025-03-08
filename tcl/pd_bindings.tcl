@@ -316,6 +316,14 @@ proc ::pd_bindings::patch_bindings {mytoplevel} {
     # window protocol bindings
     wm protocol $mytoplevel WM_DELETE_WINDOW "pdsend \"$mytoplevel menuclose 0\""
     bind $tkcanvas <Destroy> "::pd_bindings::patch_destroy %W"
+
+    # <Return> key to activate text editing
+    bind $tkcanvas <KeyPress-Return> {
+        if {$::editingtext($::focused_window) == 0} {
+            menu_send %W editmode_text
+            break
+        }
+    }
 }
 
 
