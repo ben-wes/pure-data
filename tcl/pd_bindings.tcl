@@ -320,7 +320,17 @@ proc ::pd_bindings::patch_bindings {mytoplevel} {
     # <Return> key to activate text editing
     bind $tkcanvas <KeyPress-Return> {
         if {$::editingtext($::focused_window) == 0} {
-            menu_send %W editmode_text
+            menu_send %W objtext_edit
+            break
+        }
+    }
+
+    # <Modifier-Return> to exit editing while keeping selection
+    bind $tkcanvas <$::modifier-KeyPress-Return> {
+        if {$::editingtext($::focused_window) == 1} {
+            # We can't directly call C functions from Tcl, so let's use a different approach
+            # Send a special message to the canvas to handle this in C
+            menu_send %W objtext_apply
             break
         }
     }

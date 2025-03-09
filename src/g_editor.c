@@ -57,7 +57,8 @@ static t_glist *glist_finddirty(t_glist *x);
 static void canvas_zoom(t_canvas *x, t_floatarg zoom);
 static void canvas_displaceselection(t_canvas *x, int dx, int dy);
 void canvas_setgraph(t_glist *x, int flag, int nogoprect);
-static void canvas_editmode_text(t_canvas *x);
+static void canvas_objtext_edit(t_canvas *x);
+static void canvas_objtext_apply(t_canvas *x);
 
 /* ------------------------ managing the selection ----------------- */
 void glist_deselectline(t_glist *x);
@@ -5121,8 +5122,10 @@ void g_editor_setup(void)
         gensym("triggerize"), 0);
     class_addmethod(canvas_class, (t_method)canvas_disconnect,
         gensym("disconnect"), A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, A_NULL);
-    class_addmethod(canvas_class, (t_method)canvas_editmode_text,
-        gensym("editmode_text"), 0);
+    class_addmethod(canvas_class, (t_method)canvas_objtext_edit,
+        gensym("objtext_edit"), 0);
+    class_addmethod(canvas_class, (t_method)canvas_objtext_apply,
+        gensym("objtext_apply"), 0);
 }
 
 void canvas_editor_for_class(t_class *c)
@@ -5166,11 +5169,29 @@ void g_editor_freepdinstance(void)
     freebytes(THISED, sizeof(*THISED));
 }
 
-static void canvas_editmode_text(t_canvas *x)
+static void canvas_objtext_edit(t_canvas *x)
 {
     t_gobj *y;
     if (!x->gl_editor || !x->gl_editor->e_selection)
         return;
     y = x->gl_editor->e_selection->sel_what;
     gobj_activate(y, x, 1);
+}
+
+static void canvas_objtext_apply(t_canvas *x)
+{
+    if (!x->gl_editor || !x->gl_editor->e_textedfor)
+        return;
+
+        /* check selection for cases like numbox value editing */
+    t_gobj *y = x->gl_editor->e_selection ? x->gl_editor->e_selection->sel_what : NULL;
+    glist_noselect(x);
+    if (x->gl_editor->e_textdirty)
+    {
+            /* if text was modified, select the recreated (last) object */
+        t_gobj *last_obj = glist_nth(x, glist_getindex(x, 0) - 1);
+        glist_select(x, last_obj);
+    }
+    else
+        glist_select(x, y);
 }
