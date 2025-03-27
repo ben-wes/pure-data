@@ -586,28 +586,26 @@ int scalar_doclick(t_word *data, t_template *template, t_scalar *sc,
     int hit = 0;
     t_canvas *templatecanvas = template_findcanvas(template);
     t_gobj *y;
+    if (doit)
+    {
+        t_atom at[6];
+        SETFLOAT(at, 0); /* unused - later bashed to the gpointer */
+        SETFLOAT(at+1, xloc);
+        SETFLOAT(at+2, yloc);
+        SETFLOAT(at+3, shift);
+        SETFLOAT(at+4, alt);
+        SETFLOAT(at+5, dbl);
+        template_notifyforscalar(template, owner,
+            sc, gensym("click"), 6, at);
+    }
     for (y = templatecanvas->gl_list; y; y = y->g_next)
     {
         const t_parentwidgetbehavior *wb = pd_getparentwidget(&y->g_pd);
         if (!wb) continue;
         if ((hit = (*wb->w_parentclickfn)(y, owner,
-            data, template, sc, ap, xloc,        yloc,
+            data, template, sc, ap, xloc, yloc,
             xpix, ypix, shift, alt, dbl, doit)))
-        {
-            if (doit)
-            {
-                t_atom at[6];
-                SETFLOAT(at, 0); /* unused - later bashed to the gpointer */
-                SETFLOAT(at+1, xpix - glist_xtopixels(owner, xloc));
-                SETFLOAT(at+2, ypix - glist_ytopixels(owner, yloc));
-                SETFLOAT(at+3, shift);
-                SETFLOAT(at+4, alt);
-                SETFLOAT(at+5, dbl);
-                template_notifyforscalar(template, owner,
-                    sc, gensym("click"), 6, at);
-            }
-            return (hit);
-        }
+                return (hit);
     }
     return (0);
 }
