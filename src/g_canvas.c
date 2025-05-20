@@ -848,12 +848,13 @@ void glist_menu_open(t_glist *x)
         {
                 /* erase ourself in parent window */
             gobj_vis(&x->gl_gobj, gl2, 0);
-                /* and blow away all rtexts in parent window -- we can do
-                this because rtexts that are still needed will be recreated
-                on demand by glist_findrtext() */
+                /* remove our rtext representation from parent window -- 
+                it will get recreated if needed by glist_findrtext() */
             if (gl2->gl_editor)
-                while (gl2->gl_editor->e_rtext)
-                    rtext_free(gl2->gl_editor->e_rtext);
+            {
+                t_rtext *rt = glist_getrtext(gl2, (t_text *)x);
+                if (rt) rtext_free(rt);
+            }
                     /* get rid of our editor (and subeditors) */
             if (x->gl_editor)
                 canvas_destroy_editor(x);
