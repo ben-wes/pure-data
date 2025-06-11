@@ -462,6 +462,7 @@ static void *snake_split_tilde_new(t_floatarg f)
 {
     t_snake_split *x = (t_snake_split *)pd_new(snake_split_tilde_class);
     x->x_index = (int)f;
+    inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_float, gensym("index"));
     outlet_new(&x->x_obj, &s_signal);
     outlet_new(&x->x_obj, &s_signal);
     return (x);
@@ -542,6 +543,7 @@ static void *snake_pick_tilde_new(t_symbol *s, int argc, t_atom *argv)
     x->x_indices = NULL;
     snake_pick_tilde_channels(x, s, argc, argv);    
     
+    inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_list, gensym("channels"));
     outlet_new(&x->x_obj, &s_signal);
     return (x);
 }
