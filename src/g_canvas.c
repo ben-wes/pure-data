@@ -2320,14 +2320,35 @@ static void glist_dorevis(t_glist *glist)
             glist_dorevis((t_glist *)g);
 }
 
+static t_symbol *normalize_color(t_symbol *s)
+{
+    if ('#' == s->s_name[0])
+    {
+        char colname[MAXPDSTRING];
+        int col = (int)strtol(s->s_name+1, 0, 16);
+        pd_snprintf(colname, MAXPDSTRING-1, "#%06x", col & 0xFFFFFF);
+        return gensym(colname);
+    }
+    pd_error(0, "invalid color '%s' (expected hex color)", s->s_name);
+    return 0;
+}
+
 void glob_colors(void *dummy, t_symbol *fg, t_symbol *bg, t_symbol *sel,
     t_symbol *gop)
 {
     t_glist *gl;
+    fg = normalize_color(fg);
+    bg = normalize_color(bg);
+    sel = normalize_color(sel);
+    gop = (gop && gop->s_name[0]) ? normalize_color(gop) : sel;
+    if (!fg || !bg || !sel || !gop) {
+        pd_error(0, "palette not updated due to invalid color(s)");
+        return;
+    }
     THISGUI->i_foregroundcolor = fg;
     THISGUI->i_backgroundcolor = bg;
     THISGUI->i_selectcolor = sel;
-    THISGUI->i_gopcolor = (*gop->s_name ? gop : sel);
+    THISGUI->i_gopcolor = gop;
     for (gl = pd_this->pd_canvaslist; gl; gl = gl->gl_next)
         glist_dorevis(gl);
 }
