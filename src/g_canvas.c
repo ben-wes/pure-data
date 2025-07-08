@@ -2208,10 +2208,10 @@ void g_canvas_newpdinstance(void)
     THISGUI->i_reloadingabstraction = 0;
     THISGUI->i_dspstate = 0;
     THISGUI->i_dollarzero = 1000;
-    THISGUI->i_foregroundcolor = gensym("black");
-    THISGUI->i_backgroundcolor = gensym("white");
-    THISGUI->i_selectcolor = gensym("blue");
-    THISGUI->i_gopcolor = gensym("red");
+    THISGUI->i_foregroundcolor = gensym("#000000");
+    THISGUI->i_backgroundcolor = gensym("#FFFFFF");
+    THISGUI->i_selectcolor = gensym("#0000FF");
+    THISGUI->i_gopcolor = gensym("#FF0000");
     g_editor_newpdinstance();
     g_template_newpdinstance();
 }
