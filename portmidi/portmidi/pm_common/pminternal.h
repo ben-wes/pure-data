@@ -33,15 +33,15 @@ void *pm_alloc(size_t s);
 void pm_free(void *ptr);
 
 /* if a host error (an error reported by the host MIDI API that is not
- * mapped to a PortMidi error code) occurs in a synchronous operation 
+ * mapped to a PortMidi error code) occurs in a synchronous operation
  * (i.e., not in a callback from another thread) set these: */
 extern int pm_hosterror;  /* boolean */
 extern char pm_hosterror_text[PM_HOST_ERROR_MSG_LEN];
- 
+
 struct pm_internal_struct;
 
 /* these do not use PmInternal because it is not defined yet... */
-typedef PmError (*pm_write_short_fn)(struct pm_internal_struct *midi, 
+typedef PmError (*pm_write_short_fn)(struct pm_internal_struct *midi,
                                      PmEvent *buffer);
 typedef PmError (*pm_begin_sysex_fn)(struct pm_internal_struct *midi,
                                      PmTimestamp timestamp);
@@ -92,7 +92,7 @@ typedef struct {
     PmDeviceInfo pub; /* some portmidi state also saved in here (for automatic
                          device closing -- see PmDeviceInfo struct) */
     int deleted; /* is this is a deleted virtual device? */
-    void *descriptor; /* ID number passed to win32 multimedia API open, 
+    void *descriptor; /* ID number passed to win32 multimedia API open,
                        * coreMIDI endpoint, etc., representing the device */
     struct pm_internal_struct *pm_internal; /* points to PmInternal device */
                /* when the device is open, allows automatic device closing */
@@ -118,12 +118,12 @@ typedef struct pm_internal_struct {
                   /* set to zero to get immediate, simple blocking output */
                   /* if latency is zero, timestamps will be ignored; */
                   /* if midi input device, this field ignored */
-    
+
     int sysex_in_progress; /* when sysex status is seen, this flag becomes
         * true until EOX is seen. When true, new data is appended to the
-        * stream of outgoing bytes. When overflow occurs, sysex data is 
+        * stream of outgoing bytes. When overflow occurs, sysex data is
         * dropped (until an EOX or non-real-timei status byte is seen) so
-        * that, if the overflow condition is cleared, we don't start 
+        * that, if the overflow condition is cleared, we don't start
         * sending data from the middle of a sysex message. If a sysex
         * message is filtered, sysex_in_progress is false, causing the
         * message to be dropped. */
@@ -154,12 +154,12 @@ typedef struct pm_internal_struct {
 int pm_midi_length(PmMessage msg);
 
 /* defined by system specific implementation, e.g. pmwinmm, used by PortMidi */
-void pm_init(void); 
-void pm_term(void); 
+void pm_init(void);
+void pm_term(void);
 
 /* defined by portMidi, used by pmwinmm */
 PmError none_write_short(PmInternal *midi, PmEvent *buffer);
-PmError none_write_byte(PmInternal *midi, unsigned char byte, 
+PmError none_write_byte(PmInternal *midi, unsigned char byte,
                         PmTimestamp timestamp);
 PmTimestamp none_synchronize(PmInternal *midi);
 

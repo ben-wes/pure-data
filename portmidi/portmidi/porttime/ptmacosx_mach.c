@@ -66,7 +66,7 @@ static void *Pt_CallbackProc(void *p)
     if (error != KERN_SUCCESS) {
         mach_error("Couldn't set thread precedence policy", error);
     }
-    
+
     /* Most important, set real-time constraints.
        Define the guaranteed and max fraction of time for the audio thread.
        These "duty cycle" values can range from 0 to 1.  A value of 0.5
@@ -76,19 +76,19 @@ static void *Pt_CallbackProc(void *p)
     */
     const double kGuaranteedAudioDutyCycle = 0.75;
     const double kMaxAudioDutyCycle = 0.85;
-    
+
     /* Define constants determining how much time the audio thread can
        use in a given time quantum.  All times are in milliseconds.
     */
     /* About 128 frames @44.1KHz */
     const double kTimeQuantum = 2.9;
-    
+
     /* Time guaranteed each quantum. */
     const double kAudioTimeNeeded = kGuaranteedAudioDutyCycle * kTimeQuantum;
-    
+
     /* Maximum time each quantum. */
     const double kMaxTimeAllowed = kMaxAudioDutyCycle * kTimeQuantum;
-    
+
     /* Get the conversion factor from milliseconds to absolute time
        which is what the time-constraints call needs.
     */
@@ -96,13 +96,13 @@ static void *Pt_CallbackProc(void *p)
     mach_timebase_info(&tb_info);
     double ms_to_abs_time =
     ((double)tb_info.denom / (double)tb_info.numer) * 1000000;
-    
+
     thread_time_constraint_policy_data_t time_constraints;
     time_constraints.period = (uint32_t)(kTimeQuantum * ms_to_abs_time);
     time_constraints.computation = (uint32_t)(kAudioTimeNeeded * ms_to_abs_time);
     time_constraints.constraint = (uint32_t)(kMaxTimeAllowed * ms_to_abs_time);
     time_constraints.preemptible = 0;
-    
+
     error = thread_policy_set(mach_thread_self(),
                                THREAD_TIME_CONSTRAINT_POLICY,
                                (thread_policy_t)&time_constraints,
@@ -135,7 +135,7 @@ PtError Pt_Start(int resolution, PtCallback *callback, void *userData)
 {
     if (time_started_flag) return ptAlreadyStarted;
     start_time = AudioGetCurrentHostTime();
-    
+
     if (callback) {
         int res;
         pt_callback_parameters *parms;
@@ -146,29 +146,29 @@ PtError Pt_Start(int resolution, PtCallback *callback, void *userData)
         parms->resolution = resolution;
         parms->callback = callback;
         parms->userData = userData;
-        
+
 #ifdef HAVE_APPLE_QOS
         pthread_attr_t qosAttribute;
         pthread_attr_init(&qosAttribute);
-        pthread_attr_set_qos_class_np(&qosAttribute, 
+        pthread_attr_set_qos_class_np(&qosAttribute,
                                       QOS_CLASS_USER_INTERACTIVE, 0);
 
-        res = pthread_create(&pt_thread_pid, &qosAttribute, Pt_CallbackProc, 
+        res = pthread_create(&pt_thread_pid, &qosAttribute, Pt_CallbackProc,
                              parms);
 #else
         res = pthread_create(&pt_thread_pid, NULL, Pt_CallbackProc, parms);
 #endif
-        
+
         struct sched_param sp;
         memset(&sp, 0, sizeof(struct sched_param));
         sp.sched_priority = sched_get_priority_max(SCHED_RR);
         if (pthread_setschedparam(pthread_self(), SCHED_RR, &sp)  == -1) {
             return ptHostError;
         }
-        
+
         if (res != 0) return ptHostError;
     }
-    
+
     time_started_flag = TRUE;
     return ptNoError;
 }

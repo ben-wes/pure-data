@@ -29,7 +29,7 @@
 
 void pm_init(void)
 {
-    /* Note: it is not an error for PMALSA to fail to initialize. 
+    /* Note: it is not an error for PMALSA to fail to initialize.
      * It may be a design error that the client cannot query what subsystems
      * are working properly other than by looking at the list of available
      * devices.
@@ -52,14 +52,14 @@ void pm_term(void)
     #endif
 }
 
-PmDeviceID Pm_GetDefaultInputDeviceID(void) { 
+PmDeviceID Pm_GetDefaultInputDeviceID(void) {
     Pm_Initialize();
-    return pm_default_input_device_id; 
+    return pm_default_input_device_id;
 }
 
-PmDeviceID Pm_GetDefaultOutputDeviceID(void) { 
+PmDeviceID Pm_GetDefaultOutputDeviceID(void) {
     Pm_Initialize();
-    return pm_default_output_device_id; 
+    return pm_default_output_device_id;
 }
 
 void *pm_alloc(size_t s) { return malloc(s); }

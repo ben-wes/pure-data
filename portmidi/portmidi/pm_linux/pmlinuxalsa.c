@@ -1,11 +1,11 @@
 /*
  * pmlinuxalsa.c -- system specific definitions
- * 
+ *
  * written by:
  *  Roger Dannenberg (port to Alsa 0.9.x)
  *  Clemens Ladisch (provided code examples and invaluable consulting)
  *  Jason Cohen, Rico Colon, Matt Filippone (Alsa 0.5.x implementation)
- */ 
+ */
 
 /* omit this code if PMALSA is not defined -- this mechanism allows
  * selection of different MIDI interfaces (at compile time).
@@ -45,7 +45,7 @@
 extern pm_fns_node pm_linuxalsa_in_dictionary;
 extern pm_fns_node pm_linuxalsa_out_dictionary;
 
-static snd_seq_t *seq = NULL; /* all input comes here, 
+static snd_seq_t *seq = NULL; /* all input comes here,
                                  output queue allocated on seq */
 static int queue, queue_used; /* one for all ports, reference counted */
 
@@ -150,7 +150,7 @@ static alsa_info_type alsa_info_create(int client_port, long id, int is_virtual)
     info->port = GET_DESCRIPTOR_PORT(client_port);
     info->in_sysex = 0;
     return info;
-}    
+}
 
 
 /* search system dependent extra parameters for string */
@@ -175,17 +175,17 @@ static void maybe_set_client_name(PmSysDepInfo *driverInfo)
     if (!seq) {  /* make sure seq is created and we have info */
         return;
     }
-    
+
     const char *client_name = get_sysdep_name(pmKeyAlsaClientName,
                                               (PmSysDepInfo *) driverInfo);
     if (client_name) {
         snd_seq_set_client_name(seq, client_name);
         printf("maybe_set_client_name set client to %s\n", client_name);
     }
-}    
+}
 
 
-static PmError alsa_out_open(PmInternal *midi, void *driverInfo) 
+static PmError alsa_out_open(PmInternal *midi, void *driverInfo)
 {
     int id = midi->device_id;
     void *client_port = pm_descriptors[id].descriptor;
@@ -203,7 +203,7 @@ static PmError alsa_out_open(PmInternal *midi, void *driverInfo)
         snd_seq_port_info_set_port(pinfo, id);
         snd_seq_port_info_set_capability(pinfo, SND_SEQ_PORT_CAP_WRITE |
                 SND_SEQ_PORT_CAP_READ  | SND_SEQ_PORT_CAP_SUBS_READ);
-        snd_seq_port_info_set_type(pinfo, SND_SEQ_PORT_TYPE_MIDI_GENERIC | 
+        snd_seq_port_info_set_type(pinfo, SND_SEQ_PORT_TYPE_MIDI_GENERIC |
                                           SND_SEQ_PORT_TYPE_APPLICATION);
         const char *port_name = get_sysdep_name(pmKeyAlsaPortName,
                                                 (PmSysDepInfo *) driverInfo);
@@ -216,7 +216,7 @@ static PmError alsa_out_open(PmInternal *midi, void *driverInfo)
         if (err < 0) goto free_ainfo;
 
     }
-    
+
     err = snd_midi_event_new(PM_DEFAULT_SYSEX_BUFFER_SIZE, &ainfo->parser);
     if (err < 0) goto free_this_port;
 
@@ -247,9 +247,9 @@ static PmError alsa_out_open(PmInternal *midi, void *driverInfo)
     pm_free(ainfo);
     return check_hosterror(err);
 }
-    
 
-static PmError alsa_write_byte(PmInternal *midi, unsigned char byte, 
+
+static PmError alsa_write_byte(PmInternal *midi, unsigned char byte,
                                PmTimestamp timestamp)
 {
     alsa_info_type info = (alsa_info_type) midi->api_info;
@@ -266,8 +266,8 @@ static PmError alsa_write_byte(PmInternal *midi, unsigned char byte,
         snd_seq_ev_set_source(&ev, info->this_port);
         if (midi->latency > 0) {
             /* compute relative time of event = timestamp - now + latency */
-            PmTimestamp now = (midi->time_proc ? 
-                               midi->time_proc(midi->time_info) : 
+            PmTimestamp now = (midi->time_proc ?
+                               midi->time_proc(midi->time_info) :
                                Pt_Time());
             int when = timestamp;
             /* if timestamp is zero, send immediately */
@@ -275,7 +275,7 @@ static PmError alsa_write_byte(PmInternal *midi, unsigned char byte,
             if (when == 0) when = now;
             when = (when - now) + midi->latency;
             if (when < 0) when = 0;
-            VERBOSE printf("timestamp %d now %d latency %d, ", 
+            VERBOSE printf("timestamp %d now %d latency %d, ",
                            (int) timestamp, (int) now, midi->latency);
             VERBOSE printf("scheduling event after %d\n", when);
             /* message is sent in relative ticks, where 1 tick = 1 ms */
@@ -336,7 +336,7 @@ static PmError alsa_create_virtual(int is_input, const char *name,
     snd_seq_port_info_t *pinfo;
     int err;
     int client, port;
-    
+
     /* we need the id to set the port. */
     PmDeviceID id = pm_add_device("ALSA", name, is_input, TRUE, NULL,
                                   (is_input ? &pm_linuxalsa_in_dictionary :
@@ -376,7 +376,7 @@ static PmError alsa_create_virtual(int is_input, const char *name,
      int err = snd_seq_delete_port(seq, id);
      return check_hosterror(err);
  }
- 
+
 
 static PmError alsa_in_open(PmInternal *midi, void *driverInfo)
 {
@@ -389,7 +389,7 @@ static PmError alsa_in_open(PmInternal *midi, void *driverInfo)
     snd_seq_addr_t addr;
     int err = 0;
     int is_virtual = pm_descriptors[id].pub.is_virtual;
-    
+
     if (!ainfo) return pmInsufficientMemory;
     midi->api_info = ainfo;
 
@@ -410,16 +410,16 @@ static PmError alsa_in_open(PmInternal *midi, void *driverInfo)
         snd_seq_port_info_set_capability(pinfo, SND_SEQ_PORT_CAP_WRITE |
                 SND_SEQ_PORT_CAP_READ  | SND_SEQ_PORT_CAP_SUBS_WRITE);
 
-        snd_seq_port_info_set_type(pinfo, SND_SEQ_PORT_TYPE_MIDI_GENERIC | 
+        snd_seq_port_info_set_type(pinfo, SND_SEQ_PORT_TYPE_MIDI_GENERIC |
                                           SND_SEQ_PORT_TYPE_APPLICATION);
         snd_seq_port_info_set_port_specified(pinfo, 1);
-        
+
         const char *port_name = get_sysdep_name(pmKeyAlsaPortName,
                                                 (PmSysDepInfo *) driverInfo);
         if (port_name) {
             snd_seq_port_info_set_name(pinfo, port_name);
         }
-        
+
         err = snd_seq_create_port(seq, pinfo);
         if (err < 0) goto free_queue;
 
@@ -432,7 +432,7 @@ static PmError alsa_in_open(PmInternal *midi, void *driverInfo)
         addr.port = ainfo->this_port;
         snd_seq_port_subscribe_set_dest(sub, &addr);
 
-        /* forward from the sender which is the device named by 
+        /* forward from the sender which is the device named by
            client and port */
         addr.client = ainfo->client;
         addr.port = ainfo->port;
@@ -470,15 +470,15 @@ static PmError alsa_in_close(PmInternal *midi)
     pm_free(info);
     return check_hosterror(err);
 }
-        
+
 
 static PmError alsa_abort(PmInternal *midi)
 {
-    /* NOTE: ALSA documentation is vague. This is supposed to 
-     * remove any pending output messages. If you can test and 
+    /* NOTE: ALSA documentation is vague. This is supposed to
+     * remove any pending output messages. If you can test and
      * confirm this code is correct, please update this comment. -RBD
      */
-    /* Unfortunately, I can't even compile it -- my ALSA version 
+    /* Unfortunately, I can't even compile it -- my ALSA version
      * does not implement snd_seq_remove_events_t, so this does
      * not compile. I'll try again, but it looks like I'll need to
      * upgrade my entire Linux OS -RBD
@@ -493,7 +493,7 @@ static PmError alsa_abort(PmInternal *midi)
     snd_seq_remove_events_set_condition(&info, SND_SEQ_REMOVE_DEST);
     pm_hosterror = snd_seq_remove_events(seq, &info);
     if (pm_hosterror) {
-        get_alsa_error_text(pm_hosterror_text, PM_HOST_ERROR_MSG_LEN, 
+        get_alsa_error_text(pm_hosterror_text, PM_HOST_ERROR_MSG_LEN,
                             pm_hosterror);
         return pmHostError;
     }
@@ -544,7 +544,7 @@ static PmTimestamp alsa_synchronize(PmInternal *midi)
     return 0; /* linux implementation does not use this synchronize function */
     /* Apparently, Alsa data is relative to the time you send it, and there
        is no reference. If this is true, this is a serious shortcoming of
-       Alsa. If not true, then PortMidi has a serious shortcoming -- it 
+       Alsa. If not true, then PortMidi has a serious shortcoming -- it
        should be scheduling relative to Alsa's time reference. */
 }
 
@@ -565,7 +565,7 @@ static void handle_event(snd_seq_event_t *ev)
 
     /* time stamp should be in ticks, using our queue where 1 tick = 1ms */
     /* assert((ev->flags & SND_SEQ_TIME_STAMP_MASK) == SND_SEQ_TIME_STAMP_TICK);
-       Currently, event timestamp is ignored. See long note below. 
+       Currently, event timestamp is ignored. See long note below.
     */
     VERBOSE {
         /* translate time to time_proc basis */
@@ -584,9 +584,9 @@ static void handle_event(snd_seq_event_t *ev)
     }
     /* CURRENT: portmidi timestamp is "now". In a test, timestamps from
      * hardware (MIDI over USB) were timestamped with the current ALSA
-     * time (snd_seq_queue_status_get_tick_time) and flags indicating 
+     * time (snd_seq_queue_status_get_tick_time) and flags indicating
      * absolute ticks, but timestamps from another application's virtual
-     * port, sent direct with 0 absolute ticks, were received with a 
+     * port, sent direct with 0 absolute ticks, were received with a
      * large value that is apparently the time since the start time of
      * the other application. Without any reference to our local time,
      * this seems useless. PortMidi is supposed to return the local
@@ -708,7 +708,7 @@ static void handle_event(snd_seq_event_t *ev)
         break;
     }
     case SND_SEQ_EVENT_PORT_UNSUBSCRIBED: {
-        /* this happens if you have an input port open and the 
+        /* this happens if you have an input port open and the
          * device or application with virtual ports closes. We
          * mark the port as closed to avoid closing a 2nd time
          * when Pm_Close() is called.
@@ -792,16 +792,16 @@ pm_fns_node pm_linuxalsa_out_dictionary = {
     alsa_write_short, /* short realtime message */
     alsa_write_flush,
     alsa_synchronize,
-    alsa_out_open, 
-    alsa_abort, 
+    alsa_out_open,
+    alsa_abort,
     alsa_out_close,
     none_poll,
     alsa_check_host_error
 };
 
 
-/* pm_strdup -- copy a string to the heap. Use this rather than strdup so 
- *    that we call pm_alloc, not malloc. This allows portmidi to avoid 
+/* pm_strdup -- copy a string to the heap. Use this rather than strdup so
+ *    that we call pm_alloc, not malloc. This allows portmidi to avoid
  *    malloc which might cause priority inversion. Probably ALSA is going
  *    to call malloc anyway, so this extra work here may be pointless.
  */
@@ -824,18 +824,18 @@ PmError pm_linuxalsa_init(void)
     /* Register interface ALSA with create_virtual fn */
     pm_add_interf("ALSA", &alsa_create_virtual, &alsa_delete_virtual);
 
-    /* Previously, the last parameter was SND_SEQ_NONBLOCK, but this 
+    /* Previously, the last parameter was SND_SEQ_NONBLOCK, but this
      * would cause messages to be dropped if the ALSA buffer fills up.
-     * The correct behavior is for writes to block until there is 
+     * The correct behavior is for writes to block until there is
      * room to send all the data. The client should normally allocate
-     * a large enough buffer to avoid blocking on output. 
+     * a large enough buffer to avoid blocking on output.
      * Now that blocking is enabled, the seq_event_input() will block
      * if there is no input data. This is not what we want, so must
      * call seq_event_input_pending() to avoid blocking.
      */
     err = snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0);
     if (err < 0) goto error_return;
-    
+
     snd_seq_client_info_alloca(&cinfo);
     snd_seq_port_info_alloca(&pinfo);
 
@@ -852,7 +852,7 @@ PmError pm_linuxalsa_init(void)
                           SND_SEQ_PORT_CAP_SUBS_WRITE)))
                 continue; /* ignore if you cannot read or write port */
             if (caps & SND_SEQ_PORT_CAP_SUBS_WRITE) {
-                if (pm_default_output_device_id == -1) 
+                if (pm_default_output_device_id == -1)
                     pm_default_output_device_id = pm_descriptor_len;
                 pm_add_device("ALSA",
                         pm_strdup(snd_seq_port_info_get_name(pinfo)),
@@ -862,7 +862,7 @@ PmError pm_linuxalsa_init(void)
                         &pm_linuxalsa_out_dictionary);
             }
             if (caps & SND_SEQ_PORT_CAP_SUBS_READ) {
-                if (pm_default_input_device_id == -1) 
+                if (pm_default_input_device_id == -1)
                     pm_default_input_device_id = pm_descriptor_len;
                 pm_add_device("ALSA",
                         pm_strdup(snd_seq_port_info_get_name(pinfo)),

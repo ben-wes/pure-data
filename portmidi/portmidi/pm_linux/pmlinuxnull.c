@@ -1,9 +1,9 @@
 /*
  * pmlinuxnull.c -- system specific definitions
- * 
+ *
  * written by:
  *  Roger Dannenberg
- * 
+ *
  * If there is no ALSA, you can define PMNULL and build PortMidi. It will
  * not report any devices, so you will not be able to open any, but if
  * you wanted to disable MIDI from some application, this could be used.

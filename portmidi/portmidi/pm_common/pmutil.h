@@ -1,5 +1,5 @@
-/** @file pmutil.h lock-free queue for building MIDI 
-                   applications with PortMidi. 
+/** @file pmutil.h lock-free queue for building MIDI
+                   applications with PortMidi.
 
     PortMidi is not reentrant, and locks can suffer from priority
     inversion.  To support coordination between system callbacks, a
@@ -23,7 +23,7 @@ extern "C" {
 /** The queue representation is opaque. Declare a queue as PmQueue * */
 typedef void PmQueue;
 
-/** create a single-reader, single-writer queue. 
+/** create a single-reader, single-writer queue.
 
     @param num_msgs the number of messages the queue can hold
 
@@ -32,7 +32,7 @@ typedef void PmQueue;
     @return the allocated and initialized queue, or NULL if memory
     cannot be allocated. Allocation uses pm_alloc().
 
-    The queue only accepts fixed sized messages. 
+    The queue only accepts fixed sized messages.
 
     This queue implementation uses the "light pipe" algorithm which
     operates correctly even with multi-processors and out-of-order
@@ -48,7 +48,7 @@ typedef void PmQueue;
     subsequent Pm_Dequeue() will copy from this buffer.
 
     This implementation does not try to keep reader/writer data in
-    separate cache lines or prevent thrashing on cache lines. 
+    separate cache lines or prevent thrashing on cache lines.
     However, this algorithm differs by doing inserts/removals in
     units of messages rather than units of machine words. Some
     performance improvement might be obtained by not clearing data
@@ -62,14 +62,14 @@ typedef void PmQueue;
     field. The sender will not send more until the field is zeroed.
  */
 PMEXPORT PmQueue *Pm_QueueCreate(long num_msgs, int32_t bytes_per_msg);
-    
-/** destroy a queue and free its storage. 
+
+/** destroy a queue and free its storage.
 
     @param queue a queue created by #Pm_QueueCreate().
 
     @return pmNoError or an error code.
 
-    Uses pm_free(). 
+    Uses pm_free().
 
  */
 PMEXPORT PmError Pm_QueueDestroy(PmQueue *queue);
@@ -122,8 +122,8 @@ PMEXPORT int Pm_QueueFull(PmQueue *queue);
     @return zero iff the queue is either empty or NULL.
 
     The empty condition may change immediately because a parallel
-    enqueue operation could be in progress. Furthermore, the 
-    result is optimistic: it may say false, when due to 
+    enqueue operation could be in progress. Furthermore, the
+    result is optimistic: it may say false, when due to
     out-of-order writes, the full message has not arrived. Therefore,
     #Pm_Dequeue() could still return 0 after #Pm_QueueEmpty() returns
     false.
@@ -154,13 +154,13 @@ PMEXPORT int Pm_QueueEmpty(PmQueue *queue);
     data to decide who should be called to receive it. (2) when you need
     to know a message is ready but cannot accept the message.
 
-    Note that #Pm_QueuePeek() is not a fast check, so if possible, you 
+    Note that #Pm_QueuePeek() is not a fast check, so if possible, you
     might as well just call #Pm_Dequeue() and accept the data if it is there.
  */
 PMEXPORT void *Pm_QueuePeek(PmQueue *queue);
 
 /** allows the writer (enqueuer) to signal an overflow
-    condition to the reader (dequeuer). 
+    condition to the reader (dequeuer).
 
     @param queue a queue created by #Pm_QueueCreate().
 

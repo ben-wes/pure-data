@@ -1,8 +1,8 @@
 /* pmwinmm.c -- system specific definitions */
 
 #ifndef _WIN32_WINNT
-    /* without this define, InitializeCriticalSectionAndSpinCount is 
-     * undefined. This version level means "Windows 2000 and higher" 
+    /* without this define, InitializeCriticalSectionAndSpinCount is
+     * undefined. This version level means "Windows 2000 and higher"
      */
     #define _WIN32_WINNT 0x0500
 #endif
@@ -40,10 +40,10 @@
 
 /* callback routines */
 static void CALLBACK winmm_in_callback(HMIDIIN hMidiIn,
-                                       UINT wMsg, DWORD_PTR dwInstance, 
+                                       UINT wMsg, DWORD_PTR dwInstance,
                                        DWORD_PTR dwParam1, DWORD_PTR dwParam2);
 static void CALLBACK winmm_streamout_callback(HMIDIOUT hmo, UINT wMsg,
-                                              DWORD_PTR dwInstance, 
+                                              DWORD_PTR dwInstance,
                                               DWORD_PTR dwParam1,
                                               DWORD_PTR dwParam2);
 
@@ -56,8 +56,8 @@ static void winmm_out_delete(PmInternal *midi); /* forward reference */
 A note about buffers: WinMM seems to hold onto buffers longer than
 one would expect, e.g. when I tried using 2 small buffers to send
 long sysex messages, at some point WinMM held both buffers. This problem
-was fixed by making buffers bigger. Therefore, it seems that there should 
-be enough buffer space to hold a whole sysex message. 
+was fixed by making buffers bigger. Therefore, it seems that there should
+be enough buffer space to hold a whole sysex message.
 
 The bufferSize passed into Pm_OpenInput (passed into here as buffer_len)
 will be used to estimate the largest sysex message (= buffer_len * 4 bytes).
@@ -69,7 +69,7 @@ the size of max_sysex_len, but each at least 256 bytes.
 For stream output, there will already be enough space in very short
 buffers, so use them, but make sure there are at least 16.
 
-For input, use many small buffers rather than 2 large ones so that when 
+For input, use many small buffers rather than 2 large ones so that when
 there are short sysex messages arriving frequently (as in control surfaces)
 there will be more free buffers to fill. Use max_sysex_len / 64 buffers,
 but at least 16, of size 64 bytes each.
@@ -151,9 +151,9 @@ static void pm_add_device_w(char *api, WCHAR *device_name, int is_input,
                             int is_virtual, void *descriptor, pm_fns_type dictionary)
 {
     char utf8name[4 * MAXPNAMELEN];
-    WideCharToMultiByte(CP_UTF8, 0, device_name, -1, 
+    WideCharToMultiByte(CP_UTF8, 0, device_name, -1,
                         utf8name, 4 * MAXPNAMELEN - 1, NULL, NULL);
-    /* ignore errors here -- if pm_descriptor_max is exceeded, 
+    /* ignore errors here -- if pm_descriptor_max is exceeded,
        some devices will not be accessible. */
     pm_add_device(api, utf8name, is_input, is_virtual, descriptor, dictionary);
 }
@@ -164,7 +164,7 @@ static void pm_winmm_general_inputs(void)
     UINT i;
     WORD wRtn;
     midi_num_inputs = midiInGetNumDevs();
-    midi_in_caps = (MIDIINCAPS *) pm_alloc(sizeof(MIDIINCAPS) * 
+    midi_in_caps = (MIDIINCAPS *) pm_alloc(sizeof(MIDIINCAPS) *
                                            midi_num_inputs);
     if (midi_in_caps == NULL) {
         /* if you can't open a particular system-level midi interface
@@ -193,11 +193,11 @@ static void pm_winmm_mapper_input(void)
         capabilities) then you still should retrieve some form of
         setup info. */
     wRtn = midiInGetDevCaps((UINT) MIDIMAPPER,
-                            (LPMIDIINCAPS) & midi_in_mapper_caps, 
+                            (LPMIDIINCAPS) & midi_in_mapper_caps,
                             sizeof(MIDIINCAPS));
     if (wRtn == MMSYSERR_NOERROR) {
         pm_add_device_w("MMSystem", midi_in_mapper_caps.szPname, TRUE, FALSE,
-                        (void *) (intptr_t) MIDIMAPPER, 
+                        (void *) (intptr_t) MIDIMAPPER,
                         &pm_winmm_in_dictionary);
     }
 }
@@ -236,7 +236,7 @@ static void pm_winmm_mapper_output(void)
                              & midi_out_mapper_caps, sizeof(MIDIOUTCAPS));
     if (wRtn == MMSYSERR_NOERROR) {
         pm_add_device_w("MMSystem", midi_out_mapper_caps.szPname, FALSE, FALSE,
-                        (void *) (intptr_t) MIDIMAPPER, 
+                        (void *) (intptr_t) MIDIMAPPER,
                         &pm_winmm_out_dictionary);
     }
 }
@@ -274,7 +274,7 @@ static MIDIHDR *allocate_buffer(long data_size)
 }
 
 
-static PmError allocate_buffers(winmm_info_type info, long data_size, 
+static PmError allocate_buffers(winmm_info_type info, long data_size,
                                 long count)
 {
     int i;
@@ -317,7 +317,7 @@ static LPMIDIHDR get_free_output_buffer(PmInternal *midi)
             printf("PortMidi warning: get_free_output_buffer() "
                    "wait timed out after 1000ms\n");
 #endif
-            /* if we're trying to send a sysex message, maybe the 
+            /* if we're trying to send a sysex message, maybe the
              * message is too big and we need more message buffers.
              * Expand the buffer pool by 128KB using 1024-byte buffers.
              */
@@ -333,7 +333,7 @@ static LPMIDIHDR get_free_output_buffer(PmInternal *midi)
                  */
                 if (!new_buffers) continue;
                 /* copy buffers to new_buffers and replace buffers */
-                memcpy(new_buffers, info->buffers, 
+                memcpy(new_buffers, info->buffers,
                        info->num_buffers * sizeof(LPMIDIHDR));
                 pm_free(info->buffers);
                 info->buffers = new_buffers;
@@ -343,7 +343,7 @@ static LPMIDIHDR get_free_output_buffer(PmInternal *midi)
             /* next, add one buffer and return it */
             if (info->num_buffers < info->max_buffers) {
                 r = allocate_buffer(EXPANSION_BUFFER_LEN);
-                /* again, if there's no memory, we may not really be 
+                /* again, if there's no memory, we may not really be
                  * dead -- maybe the system is temporarily hung and
                  * we can just wait longer for a message buffer */
                 if (!r) continue;
@@ -558,10 +558,10 @@ static void FAR PASCAL winmm_in_callback(
 
     switch (wMsg) {
     case MIM_DATA: {
-        /* if this callback is reentered with data, we're in trouble. 
-         * It's hard to imagine that Microsoft would allow callbacks 
-         * to be reentrant -- isn't the model that this is like a 
-         * hardware interrupt? -- but I've seen reentrant behavior 
+        /* if this callback is reentered with data, we're in trouble.
+         * It's hard to imagine that Microsoft would allow callbacks
+         * to be reentrant -- isn't the model that this is like a
+         * hardware interrupt? -- but I've seen reentrant behavior
          * using a debugger, so it happens.
          */
         EnterCriticalSection(&info->lock);
@@ -596,7 +596,7 @@ static void FAR PASCAL winmm_in_callback(
         int remaining = lpMidiHdr->dwBytesRecorded;
 
         EnterCriticalSection(&info->lock);
-        /* printf("midi_in_callback -- lpMidiHdr %x, %d bytes, %2x...\n", 
+        /* printf("midi_in_callback -- lpMidiHdr %x, %d bytes, %2x...\n",
                 lpMidiHdr, lpMidiHdr->dwBytesRecorded, *data); */
         if (midi->time_proc)
             dwParam2 = (*midi->time_proc)(midi->time_info);
@@ -756,7 +756,7 @@ static PmError winmm_out_open(PmInternal *midi, void *driverInfo)
         if (pm_hosterror) goto close_device;
     }
     /* allocate buffers */
-    if (allocate_buffers(info, output_buffer_len, num_buffers)) 
+    if (allocate_buffers(info, output_buffer_len, num_buffers))
         goto free_buffers;
     /* start device */
     if (midi->latency != 0) {
@@ -849,21 +849,21 @@ static PmError winmm_write_flush(PmInternal *midi, PmTimestamp timestamp)
     winmm_info_type info = (winmm_info_type) midi->api_info;
     assert(info);
     if (info->hdr) {
-        pm_hosterror = midiOutPrepareHeader(info->handle.out, info->hdr, 
+        pm_hosterror = midiOutPrepareHeader(info->handle.out, info->hdr,
                                             sizeof(MIDIHDR));
         if (pm_hosterror) {
             /* do not send message */
         } else if (midi->latency == 0) {
             /* As pointed out by Nigel Brown, 20Sep06, dwBytesRecorded
-             * should be zero. This is set in get_free_sysex_buffer(). 
+             * should be zero. This is set in get_free_sysex_buffer().
              * The msg length goes in dwBufferLength in spite of what
              * Microsoft documentation says (or doesn't say). */
             info->hdr->dwBufferLength = info->hdr->dwBytesRecorded;
             info->hdr->dwBytesRecorded = 0;
-            pm_hosterror = midiOutLongMsg(info->handle.out, info->hdr, 
+            pm_hosterror = midiOutLongMsg(info->handle.out, info->hdr,
                                           sizeof(MIDIHDR));
         } else {
-            pm_hosterror = midiStreamOut(info->handle.stream, info->hdr, 
+            pm_hosterror = midiStreamOut(info->handle.stream, info->hdr,
                                          sizeof(MIDIHDR));
         }
         midi->fill_base = NULL;
@@ -942,7 +942,7 @@ static PmError winmm_end_sysex(PmInternal *midi, PmTimestamp timestamp)
     PmError rslt = pmNoError;
     LPMIDIHDR hdr = info->hdr;
     if (!hdr) return rslt; /* something bad happened earlier,
-            do not report an error because it would have been 
+            do not report an error because it would have been
             reported (at least) once already */
     /* a(n old) version of MIDI YOKE requires a zero byte after
      * the sysex message, but do not increment dwBytesRecorded: */
@@ -990,7 +990,7 @@ static PmError winmm_write_byte(PmInternal *midi, unsigned char byte,
         /* when buffer fills, Pm_WriteSysEx will revert to calling
          * pmwin_write_byte, which expect to have space, so leave
          * one byte free for pmwin_write_byte. Leave another byte
-         * of space for zero after message to make early version of 
+         * of space for zero after message to make early version of
          * MIDI YOKE driver happy -- therefore dwBufferLength - 2 */
         midi->fill_length = hdr->dwBufferLength - 2;
         if (midi->latency != 0) {
@@ -1020,7 +1020,7 @@ static PmError winmm_write_byte(PmInternal *midi, unsigned char byte,
     /* see if buffer is full, leave one byte extra for pad */
     if (hdr->dwBytesRecorded >= hdr->dwBufferLength - 1) {
         /* write what we've got and continue */
-        rslt = winmm_end_sysex(midi, timestamp); 
+        rslt = winmm_end_sysex(midi, timestamp);
     }
     return rslt;
 }
@@ -1065,10 +1065,10 @@ static void CALLBACK winmm_streamout_callback(HMIDIOUT hmo, UINT wMsg,
     /* Even if an error is pending, I think we should unprepare msgs and
        signal their arrival
      */
-    /* printf("streamout_callback: hdr %x, wMsg %x, MOM_DONE %x\n", 
+    /* printf("streamout_callback: hdr %x, wMsg %x, MOM_DONE %x\n",
            hdr, wMsg, MOM_DONE); */
     if (wMsg == MOM_DONE) {
-        MMRESULT ret = midiOutUnprepareHeader(info->handle.out, hdr, 
+        MMRESULT ret = midiOutUnprepareHeader(info->handle.out, hdr,
                                               sizeof(MIDIHDR));
         assert(ret == MMSYSERR_NOERROR);
     } else if (wMsg == MOM_CLOSE) {
@@ -1080,7 +1080,7 @@ static void CALLBACK winmm_streamout_callback(HMIDIOUT hmo, UINT wMsg,
          * observe is_removed == TRUE. On the other hand, if the device
          * is removed, setting is_removed will cause PortMidi to return
          * the pmDeviceRemoved error on attempts to output to the device.
-         *     In the case of normal closing, due to midiOutClose(), 
+         *     In the case of normal closing, due to midiOutClose(),
          * the call below is reentrant (!), but for some reason this does
          * not cause an error or infinite recursion, so we are not taking
          * any precautions to flag midi as "in the process of closing."
@@ -1121,7 +1121,7 @@ pm_fns_node pm_winmm_out_dictionary = {
                                           winmm_begin_sysex,
                                           winmm_end_sysex,
                                           winmm_write_byte,
-            /* short realtime message: */ winmm_write_short,  
+            /* short realtime message: */ winmm_write_short,
                                           winmm_write_flush,
                                           winmm_synchronize,
                                           winmm_out_open,

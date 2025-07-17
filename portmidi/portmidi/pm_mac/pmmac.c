@@ -1,7 +1,7 @@
 /* pmmac.c -- PortMidi os-dependent code */
 
 /* This file only needs to implement:
-pm_init(), which calls various routines to register the 
+pm_init(), which calls various routines to register the
 available midi devices,
 Pm_GetDefaultInputDeviceID(), and
 Pm_GetDefaultOutputDeviceID().
@@ -26,7 +26,7 @@ void pm_term(void)
     pm_macosxcm_term();
 }
 
-PmDeviceID Pm_GetDefaultInputDeviceID(void) 
+PmDeviceID Pm_GetDefaultInputDeviceID(void)
 {
     Pm_Initialize();
     return pm_default_input_device_id;
