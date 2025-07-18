@@ -124,7 +124,7 @@ static void my_numbox_draw_config(t_my_numbox* x, t_glist* glist)
     SETFLOAT (fontatoms+1, -iemgui->x_fontsize*zoom);
     SETSYMBOL(fontatoms+2, gensym(sys_fontweight));
 
-    unsigned int fcol = x->x_gui.x_fcol, lcol = x->x_gui.x_lcol;
+    unsigned int fcol = iemgui_getcolor_foreground(&x->x_gui), lcol = iemgui_getcolor_label(&x->x_gui);
     if(x->x_gui.x_fsf.x_selected)
     {
         fcol = lcol = THISGUI->i_selectcolor;
@@ -147,7 +147,7 @@ static void my_numbox_draw_config(t_my_numbox* x, t_glist* glist)
     pdgui_vmess(0, "crs  ri rk rk", canvas, "itemconfigure", tag,
         "-width", zoom,
         "-outline", THISGUI->i_foregroundcolor,
-        "-fill", x->x_gui.x_bcol);
+        "-fill", iemgui_getcolor_background(&x->x_gui));
 
 
     sprintf(tag, "%pBASE2", x);
@@ -157,7 +157,7 @@ static void my_numbox_draw_config(t_my_numbox* x, t_glist* glist)
         xpos + zoom, ypos + x->x_gui.x_h - zoom);
     pdgui_vmess(0, "crs  ri rk", canvas, "itemconfigure", tag,
         "-width", zoom,
-        "-fill", x->x_gui.x_fcol);
+        "-fill", iemgui_getcolor_foreground(&x->x_gui));
 
     sprintf(tag, "%pLABEL", x);
     pdgui_vmess(0, "crs  ii", canvas, "coords", tag,
@@ -211,7 +211,7 @@ static void my_numbox_draw_select(t_my_numbox *x, t_glist *glist)
     t_canvas *canvas = glist_getcanvas(glist);
     char tag[128];
     unsigned int bcol = THISGUI->i_foregroundcolor;
-    unsigned int fcol = x->x_gui.x_fcol, lcol = x->x_gui.x_lcol;
+    unsigned int fcol = iemgui_getcolor_foreground(&x->x_gui), lcol = iemgui_getcolor_label(&x->x_gui);
 
     if(x->x_gui.x_fsf.x_selected)
     {
@@ -274,7 +274,7 @@ static void my_numbox_draw_update(t_gobj *client, t_glist *glist)
                     "-text", x->x_buf);
             else
                 pdgui_vmess(0, "crs rk rs", canvas, "itemconfigure", tag,
-                    "-fill", x->x_gui.x_fcol,
+                    "-fill", iemgui_getcolor_foreground(&x->x_gui),
                     "-text", x->x_buf);
             x->x_buf[0] = 0;
         }
@@ -400,16 +400,21 @@ static void my_numbox_dialog(t_my_numbox *x, t_symbol *s, int argc,
     int lilo = (int)atom_getfloatarg(4, argc, argv);
     int log_height = (int)atom_getfloatarg(6, argc, argv);
     int sr_flags;
-    t_atom undo[18];
-    iemgui_setdialogatoms(&x->x_gui, 18, undo);
+    t_atom undo[20];
+    iemgui_setdialogatoms(&x->x_gui, 20, undo);
     SETFLOAT(undo+0, x->x_numwidth);
+    SETFLOAT(undo+1, x->x_gui.x_h/IEMGUI_ZOOM(x));
     SETFLOAT(undo+2, x->x_min);
     SETFLOAT(undo+3, x->x_max);
     SETFLOAT(undo+4, x->x_lin0_log1);
+    SETFLOAT(undo+5, -1);
     SETFLOAT(undo+6, x->x_log_height);
-
+    /* Set default color flags for undo */
+    SETFLOAT (undo+17, (x->x_gui.x_bcol == IEM_GUI_COLOR_DEFAULT_SENTINEL) ? 1 : 0);
+    SETFLOAT (undo+18, (x->x_gui.x_fcol == IEM_GUI_COLOR_DEFAULT_SENTINEL) ? 1 : 0);
+    SETFLOAT (undo+19, (x->x_gui.x_lcol == IEM_GUI_COLOR_DEFAULT_SENTINEL) ? 1 : 0);
     pd_undo_set_objectstate(x->x_gui.x_glist, (t_pd*)x, gensym("dialog"),
-                            18, undo,
+                            20, undo,
                             argc, argv);
 
     if(lilo != 0) lilo = 1;
