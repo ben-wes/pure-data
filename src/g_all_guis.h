@@ -314,6 +314,11 @@ EXTERN void iem_inttofstyle(t_iem_fstyle_flags *fstylep, int n);
 EXTERN int iem_fstyletoint(t_iem_fstyle_flags *fstylep);
 EXTERN void iemgui_setdrawfunctions(t_iemgui *iemgui, t_iemgui_drawfunctions *w);
 
+EXTERN unsigned int iemgui_getcolor_background(t_iemgui *x);
+EXTERN unsigned int iemgui_getcolor_foreground(t_iemgui *x);
+EXTERN unsigned int iemgui_getcolor_label(t_iemgui *x);
+EXTERN unsigned int iemgui_getcolor_attenuated(t_iemgui *x);
+
 #define IEMGUI_SETDRAWFUNCTIONS(x, prefix)                     \
     {                                                            \
         t_iemgui_drawfunctions w;                              \

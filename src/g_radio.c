@@ -107,12 +107,12 @@ static void radio_draw_config(t_radio* x, t_glist* glist)
 
     for(i = 0; i < x->x_number; i++)
     {
-        unsigned int col = (x->x_on == i) ? x->x_gui.x_fcol : x->x_gui.x_bcol;
+        unsigned int col = (x->x_on == i) ? iemgui_getcolor_foreground(&x->x_gui) : iemgui_getcolor_background(&x->x_gui);
         sprintf(tag, "%pBASE%d", x, i);
         pdgui_vmess(0, "crs iiii", canvas, "coords", tag,
             xx11, yy11, xx12, yy12);
         pdgui_vmess(0, "crs ri rk rk", canvas, "itemconfigure", tag,
-            "-width", zoom, "-fill", x->x_gui.x_bcol,
+            "-width", zoom, "-fill", iemgui_getcolor_background(&x->x_gui),
             "-outline", THISGUI->i_foregroundcolor);
 
         sprintf(tag, "%pBUT%d", x, i);
@@ -131,7 +131,7 @@ static void radio_draw_config(t_radio* x, t_glist* glist)
         xx11b + x->x_gui.x_ldx * zoom, yy11b + x->x_gui.x_ldy * zoom);
     pdgui_vmess(0, "crs rA rk", canvas, "itemconfigure", tag,
         "-font", 3, fontatoms,
-        "-fill", x->x_gui.x_lcol);
+        "-fill", iemgui_getcolor_label(&x->x_gui));
     iemgui_dolabel(x, &x->x_gui, x->x_gui.x_lab, 1);
 }
 
@@ -173,7 +173,7 @@ static void radio_draw_select(t_radio* x, t_glist* glist)
     int n = x->x_number, i;
     t_canvas *canvas = glist_getcanvas(glist);
     char tag[128];
-    unsigned int col = THISGUI->i_foregroundcolor, lcol = x->x_gui.x_lcol;
+    unsigned int col = THISGUI->i_foregroundcolor, lcol = iemgui_getcolor_label(&x->x_gui);
 
     if(x->x_gui.x_fsf.x_selected)
         lcol = col = THISGUI->i_selectcolor;
@@ -194,13 +194,13 @@ static void radio_draw_update(t_gobj *client, t_glist *glist)
 
         sprintf(tag, "%pBUT%d", x, x->x_drawn);
         pdgui_vmess(0, "crs rk rk", canvas, "itemconfigure", tag,
-            "-fill", x->x_gui.x_bcol,
-            "-outline", x->x_gui.x_bcol);
+            "-fill", iemgui_getcolor_background(&x->x_gui),
+            "-outline", iemgui_getcolor_background(&x->x_gui));
 
         sprintf(tag, "%pBUT%d", x, x->x_on);
         pdgui_vmess(0, "crs rk rk", canvas, "itemconfigure", tag,
-            "-fill", x->x_gui.x_fcol,
-            "-outline", x->x_gui.x_fcol);
+            "-fill", iemgui_getcolor_foreground(&x->x_gui),
+            "-outline", iemgui_getcolor_foreground(&x->x_gui));
 
         x->x_drawn = x->x_on;
     }

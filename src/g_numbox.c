@@ -124,7 +124,7 @@ static void my_numbox_draw_config(t_my_numbox* x, t_glist* glist)
     SETFLOAT (fontatoms+1, -iemgui->x_fontsize*zoom);
     SETSYMBOL(fontatoms+2, gensym(sys_fontweight));
 
-    unsigned int fcol = x->x_gui.x_fcol, lcol = x->x_gui.x_lcol;
+    unsigned int fcol = iemgui_getcolor_foreground(&x->x_gui), lcol = iemgui_getcolor_label(&x->x_gui);
     if(x->x_gui.x_fsf.x_selected)
     {
         fcol = lcol = THISGUI->i_selectcolor;
@@ -147,7 +147,7 @@ static void my_numbox_draw_config(t_my_numbox* x, t_glist* glist)
     pdgui_vmess(0, "crs  ri rk rk", canvas, "itemconfigure", tag,
         "-width", zoom,
         "-outline", THISGUI->i_foregroundcolor,
-        "-fill", x->x_gui.x_bcol);
+        "-fill", iemgui_getcolor_background(&x->x_gui));
 
 
     sprintf(tag, "%pBASE2", x);
@@ -157,7 +157,7 @@ static void my_numbox_draw_config(t_my_numbox* x, t_glist* glist)
         xpos + zoom, ypos + x->x_gui.x_h - zoom);
     pdgui_vmess(0, "crs  ri rk", canvas, "itemconfigure", tag,
         "-width", zoom,
-        "-fill", x->x_gui.x_fcol);
+        "-fill", iemgui_getcolor_foreground(&x->x_gui));
 
     sprintf(tag, "%pLABEL", x);
     pdgui_vmess(0, "crs  ii", canvas, "coords", tag,
@@ -211,7 +211,7 @@ static void my_numbox_draw_select(t_my_numbox *x, t_glist *glist)
     t_canvas *canvas = glist_getcanvas(glist);
     char tag[128];
     unsigned int bcol = THISGUI->i_foregroundcolor;
-    unsigned int fcol = x->x_gui.x_fcol, lcol = x->x_gui.x_lcol;
+    unsigned int fcol = iemgui_getcolor_foreground(&x->x_gui), lcol = iemgui_getcolor_label(&x->x_gui);
 
     if(x->x_gui.x_fsf.x_selected)
     {
@@ -274,7 +274,7 @@ static void my_numbox_draw_update(t_gobj *client, t_glist *glist)
                     "-text", x->x_buf);
             else
                 pdgui_vmess(0, "crs rk rs", canvas, "itemconfigure", tag,
-                    "-fill", x->x_gui.x_fcol,
+                    "-fill", iemgui_getcolor_foreground(&x->x_gui),
                     "-text", x->x_buf);
             x->x_buf[0] = 0;
         }

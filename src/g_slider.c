@@ -144,7 +144,7 @@ static void slider_draw_config(t_slider* x, t_glist* glist)
         xpos + x->x_gui.x_w + rmargin, ypos + x->x_gui.x_h + bmargin);
     pdgui_vmess(0, "crs ri rk rk", canvas, "itemconfigure", tag,
         "-width", zoom,
-        "-fill", x->x_gui.x_bcol,
+        "-fill", iemgui_getcolor_background(&x->x_gui),
         "-outline", THISGUI->i_foregroundcolor);
 
     sprintf(tag, "%pKNOB", x);
@@ -152,7 +152,7 @@ static void slider_draw_config(t_slider* x, t_glist* glist)
         a, b, c, d);
     pdgui_vmess(0, "crs ri rk", canvas, "itemconfigure", tag,
         "-width", 1 + 2 * zoom,
-        "-outline", x->x_gui.x_fcol);
+        "-outline", iemgui_getcolor_foreground(&x->x_gui));
 
     sprintf(tag, "%pLABEL", x);
     pdgui_vmess(0, "crs ii", canvas, "coords", tag,
@@ -163,7 +163,7 @@ static void slider_draw_config(t_slider* x, t_glist* glist)
             "-font", 3, fontatoms, "-fill", THISGUI->i_selectcolor);
     else
         pdgui_vmess(0, "crs rA rk", canvas, "itemconfigure", tag,
-            "-font", 3, fontatoms, "-fill", x->x_gui.x_lcol);
+            "-font", 3, fontatoms, "-fill", iemgui_getcolor_label(&x->x_gui));
     iemgui_dolabel(x, &x->x_gui, x->x_gui.x_lab, 1);
 }
 
@@ -195,7 +195,7 @@ static void slider_draw_select(t_slider* x, t_glist* glist)
 {
     t_canvas *canvas = glist_getcanvas(glist);
     char tag[128];
-    unsigned int col = THISGUI->i_foregroundcolor, lcol = x->x_gui.x_lcol;
+    unsigned int col = THISGUI->i_foregroundcolor, lcol = iemgui_getcolor_label(&x->x_gui);
 
     if(x->x_gui.x_fsf.x_selected)
         col = lcol = THISGUI->i_selectcolor;

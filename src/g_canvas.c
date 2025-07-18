@@ -2223,6 +2223,7 @@ void g_canvas_newpdinstance(void)
     THISGUI->i_backgroundcolor = 0xFFFFFF;
     THISGUI->i_selectcolor = 0x0000FF;
     THISGUI->i_gopcolor = 0xFF0000;
+    THISGUI->i_attenuatedcolor = 0xE0E0E0;
     g_editor_newpdinstance();
     g_template_newpdinstance();
 }
@@ -2346,6 +2347,23 @@ static unsigned int normalize_color(t_symbol *s)
     return (0);
 }
 
+unsigned int interpolate_colors(unsigned int c1, unsigned int c2, float factor)
+{
+    int a1 = (c1 >> 24) & 0xFF;
+    int r1 = (c1 >> 16) & 0xFF;
+    int g1 = (c1 >> 8)  & 0xFF;
+    int b1 =  c1        & 0xFF;
+    int a2 = (c2 >> 24) & 0xFF;
+    int r2 = (c2 >> 16) & 0xFF;
+    int g2 = (c2 >> 8)  & 0xFF;
+    int b2 =  c2        & 0xFF;
+    unsigned int a = a1 + (a2 - a1) * factor;
+    unsigned int r = r1 + (r2 - r1) * factor;
+    unsigned int g = g1 + (g2 - g1) * factor;
+    unsigned int b = b1 + (b2 - b1) * factor; 
+    return (r << 16) | (g << 8) | b;
+}
+
 void glob_colors(void *dummy, t_symbol *fg, t_symbol *bg, t_symbol *sel,
     t_symbol *gop)
 {
@@ -2363,6 +2381,7 @@ void glob_colors(void *dummy, t_symbol *fg, t_symbol *bg, t_symbol *sel,
     THISGUI->i_backgroundcolor = c_bg;
     THISGUI->i_selectcolor = c_sel;
     THISGUI->i_gopcolor = c_gop;
+    THISGUI->i_attenuatedcolor = interpolate_colors(c_bg, c_fg, 0.17);
     for (gl = pd_this->pd_canvaslist; gl; gl = gl->gl_next)
         glist_dorevis(gl);
 }

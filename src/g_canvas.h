@@ -286,6 +286,7 @@ struct _instancecanvas  /* per-instance stuff for canvases */
     t_float i_graph_lastxpix, i_graph_lastypix;       /* state for dragging */
     unsigned int i_foregroundcolor, i_backgroundcolor;  /* color of fg & bg */
     unsigned int i_selectcolor, i_gopcolor;             /* ...selection and GOP */
+    unsigned int i_attenuatedcolor;                     /* derived attenuated color */
 };
 
 void g_editor_newpdinstance(void);
@@ -683,6 +684,9 @@ EXTERN void guiconnect_notarget(t_guiconnect *x, double timedelay);
 EXTERN t_symbol *iemgui_raute2dollar(t_symbol *s);
 EXTERN t_symbol *iemgui_dollar2raute(t_symbol *s);
 EXTERN t_symbol *iemgui_put_in_braces(t_symbol *s);
+
+/*-------------  g_canvas.c ------------- */
+EXTERN unsigned int interpolate_colors(unsigned int c1, unsigned int c2, float factor);
 
 /*-------------  g_clone.c ------------- */
 EXTERN t_class *clone_class;

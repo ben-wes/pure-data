@@ -44,8 +44,8 @@ static void my_canvas_draw_config(t_my_canvas* x, t_glist* glist)
     pdgui_vmess(0, "crs iiii", canvas, "coords", tag,
         xpos, ypos, xpos + x->x_vis_w * zoom, ypos + x->x_vis_h * zoom);
     pdgui_vmess(0, "crs rk rk", canvas, "itemconfigure", tag,
-        "-fill", x->x_gui.x_bcol,
-        "-outline", x->x_gui.x_bcol);
+        "-fill", iemgui_getcolor_attenuated(&x->x_gui),
+        "-outline", iemgui_getcolor_attenuated(&x->x_gui));
 
     sprintf(tag, "%pBASE", x);
     pdgui_vmess(0, "crs iiii", canvas, "coords", tag,
@@ -57,7 +57,7 @@ static void my_canvas_draw_config(t_my_canvas* x, t_glist* glist)
             "-width", zoom, "-outline", THISGUI->i_selectcolor);
     else
         pdgui_vmess(0, "crs ri rk", canvas, "itemconfigure", tag,
-            "-width", zoom, "-outline", x->x_gui.x_bcol);
+            "-width", zoom, "-outline", iemgui_getcolor_attenuated(&x->x_gui));
 
     sprintf(tag, "%pLABEL", x);
     pdgui_vmess(0, "crs ii", canvas, "coords", tag,
@@ -65,7 +65,7 @@ static void my_canvas_draw_config(t_my_canvas* x, t_glist* glist)
         ypos + x->x_gui.x_ldy * zoom);
     pdgui_vmess(0, "crs rA rk", canvas, "itemconfigure", tag,
         "-font", 3, fontatoms,
-        "-fill", x->x_gui.x_lcol);
+        "-fill", iemgui_getcolor_label(&x->x_gui));
     iemgui_dolabel(x, &x->x_gui, x->x_gui.x_lab, 1);
 }
 
@@ -101,7 +101,7 @@ static void my_canvas_draw_select(t_my_canvas* x, t_glist* glist)
             "-outline", THISGUI->i_selectcolor);
     else
         pdgui_vmess(0, "crs rk", canvas, "itemconfigure", tag,
-            "-outline", x->x_gui.x_bcol);
+            "-outline", iemgui_getcolor_attenuated(&x->x_gui));
 }
 
 /* ------------------------ cnv widgetbehaviour----------------------------- */
@@ -251,10 +251,6 @@ static void *my_canvas_new(t_symbol *s, int argc, t_atom *argv)
     int fs = x->x_gui.x_fontsize;
 
     IEMGUI_SETDRAWFUNCTIONS(x, my_canvas);
-
-    x->x_gui.x_bcol = 0xE0E0E0;
-    x->x_gui.x_fcol = 0x00;
-    x->x_gui.x_lcol = 0x404040;
 
     if(((argc >= 10)&&(argc <= 13))
        &&IS_A_FLOAT(argv,0)&&IS_A_FLOAT(argv,1)&&IS_A_FLOAT(argv,2))
