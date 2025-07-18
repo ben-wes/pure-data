@@ -2382,6 +2382,9 @@ void glob_colors(void *dummy, t_symbol *fg, t_symbol *bg, t_symbol *sel,
     THISGUI->i_selectcolor = c_sel;
     THISGUI->i_gopcolor = c_gop;
     THISGUI->i_attenuatedcolor = interpolate_colors(c_bg, c_fg, 0.17);
+    pdgui_vmess("::pdtk_canvas::set_color_palette", "kkkkk", 
+        THISGUI->i_foregroundcolor, THISGUI->i_backgroundcolor, 
+        THISGUI->i_selectcolor, THISGUI->i_gopcolor, THISGUI->i_attenuatedcolor);
     for (gl = pd_this->pd_canvaslist; gl; gl = gl->gl_next)
         glist_dorevis(gl);
 }

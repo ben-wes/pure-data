@@ -12,6 +12,17 @@ namespace eval ::pdtk_canvas:: {
 
     variable enable_cords_to_foreground 0
 
+    # color palette variables
+    # TODO remove redundancy with core default color palette
+    variable colors
+    array set colors {
+        foreground "#000000"
+        background "#FFFFFF"  
+        selection "#0000FF"
+        gop "#0000FF"
+        attenuated "#E0E0E0"
+    }
+
     namespace export pdtk_canvas_popup
     namespace export pdtk_canvas_editmode
     namespace export pdtk_canvas_getscroll
@@ -508,11 +519,19 @@ proc ::pdtk_canvas::cleanname {name} {
     return $name
 }
 
+proc ::pdtk_canvas::set_color_palette {fg bg sel gop attenuated} {
+    set ::pdtk_canvas::colors(foreground) $fg
+    set ::pdtk_canvas::colors(background) $bg 
+    set ::pdtk_canvas::colors(selection) $sel
+    set ::pdtk_canvas::colors(gop) $gop
+    set ::pdtk_canvas::colors(attenuated) $attenuated
+}
+
 proc ::pdtk_canvas::cords_to_foreground {mytoplevel {state 1}} {
     if {$::pdtk_canvas::enable_cords_to_foreground} {
-        set col black
+        set col $::pdtk_canvas::colors(foreground)
         if { $state == 0 } {
-            set col lightgrey
+            set col $::pdtk_canvas::colors(attenuated)
         }
         foreach id [$mytoplevel find withtag {cord && !selected}] {
             # don't apply backgrouding on selected (blue) lines
