@@ -27,22 +27,81 @@ array set ::pdwindow::missingobjects {}
 
 # TODO make the Pd window save its size and location between running
 
-proc ::pdwindow::set_layout {} {
-    variable maxloglevel
-    .pdwindow.text.internal tag configure log0 -foreground "#d00" -background "#ffe0e8"
-    .pdwindow.text.internal tag configure log1 -foreground "#d00"
-    # log2 messages are normal black on white
-    .pdwindow.text.internal tag configure log3 -foreground "#484848"
-
-    # 0-20(4-24) is a rough useful range of 'verbose' levels for impl debugging
-    set start 4
-    set end 25
-    for {set i $start} {$i < $end} {incr i} {
-        set B [expr int(($i - $start) * (40 / ($end - $start))) + 50]
-        .pdwindow.text.internal tag configure log${i} -foreground grey${B}
+# Minimal, robust color update for Pd window log area
+proc ::pdwindow::update_colors {} {
+    set widget ""
+    if {[winfo exists .pdwindow.text.internal]} {
+        set widget .pdwindow.text.internal
+    } elseif {[winfo exists .pdwindow.text]} {
+        set widget .pdwindow.text
     }
+    # Header color (interpolated)
+    set header_color [::pd_colors::interpolate $::pd_colors::palette(background) $::pd_colors::palette(foreground) 0.12]
+    # Update header and subwidgets
+    if {[winfo exists .pdwindow.header]} {
+        .pdwindow.header configure -background $header_color
+    }
+    if {[winfo exists .pdwindow.header.pad1]} {
+        .pdwindow.header.pad1 configure -background $header_color
+    }
+    if {[winfo exists .pdwindow.header.dsp]} {
+        .pdwindow.header.dsp configure -background $header_color -foreground $::pd_colors::palette(foreground)
+    }
+    if {[winfo exists .pdwindow.header.ioframe]} {
+        .pdwindow.header.ioframe configure -background $header_color
+    }
+    if {[winfo exists .pdwindow.header.ioframe.iostate]} {
+        .pdwindow.header.ioframe.iostate configure -background $header_color -foreground $::pd_colors::palette(foreground)
+    }
+    if {[winfo exists .pdwindow.header.ioframe.dio]} {
+        .pdwindow.header.ioframe.dio configure -background $header_color -foreground $header_color
+    }
+    if {[winfo exists .pdwindow.header.loglabel]} {
+        .pdwindow.header.loglabel configure -background $header_color -foreground $::pd_colors::palette(foreground)
+    }
+    if {[winfo exists .pdwindow.header.logmenu]} {
+        .pdwindow.header.logmenu configure -background $header_color -foreground $::pd_colors::palette(foreground)
+    }
+    # Set the Pd window's overall background to the palette background
+    if {[winfo exists .pdwindow]} {
+        .pdwindow configure -background $::pd_colors::palette(background)
+    }
+    # Set the text widget background to the palette background
+    if {$widget ne ""} {
+        $widget configure -background $::pd_colors::palette(background)
+        focus .pdwindow.text
+    }
+    # Only set foreground for tags, not background
+    $widget tag configure log0 -foreground $::pd_colors::palette(gop)
+    $widget tag configure log1 -foreground $::pd_colors::palette(gop)
+    $widget tag configure log2 -foreground $::pd_colors::palette(foreground)
+    $widget tag configure log3 -foreground [::pd_colors::interpolate $::pd_colors::palette(background) $::pd_colors::palette(foreground) 0.7]
+    for {set i 4} {$i < 25} {incr i} {
+        set B [expr {0.5 + 0.5 * double($i - 4) / (25 - 4)}]
+        set col [::pd_colors::interpolate $::pd_colors::palette(background) $::pd_colors::palette(foreground) $B]
+        $widget tag configure log${i} -foreground $col
+    }
+    $widget tag configure {} -foreground $::pd_colors::palette(foreground)
+    # Ensure selection is visible (hardcoded for testing)
+    # $widget configure -selectbackground "#00ffff" -selectforeground "#000000"
+    # $widget tag configure sel -background [::pd_colors::interpolate $::pd_colors::palette(selected) $::pd_colors::palette(background) 0.5] -foreground $::pd_colors::palette(foreground)
+    # Ensure all other tags are readable
+    foreach tag [$widget tag names] {
+        if {![string match log* $tag] && $tag ne "sel" && $tag ne ""} {
+            $widget tag configure $tag -foreground $::pd_colors::palette(foreground)
+        }
+    }
+    ::pdwindow::filter_logbuffer
+    update idletasks
 }
 
+# Minimal set_layout for layout/geometry only
+proc ::pdwindow::set_layout {} {
+    # This function can be expanded if you need to re-pack or re-create widgets
+    # after a window resize or other geometry/layout event.
+    # For now, it is a placeholder to separate layout from color logic.
+    # Example: you could re-pack widgets here if needed.
+}
 
 # grab focus on part of the Pd window when Pd is busy
 proc ::pdwindow::busygrab {} {
@@ -366,16 +425,23 @@ proc ::pdwindow::create_window {} {
     set ::loaded(.pdwindow) 0
 
     # colorize by class before creating anything
-    option add *PdWindow*Entry.highlightBackground "grey" startupFile
-    option add *PdWindow*Frame.background "grey" startupFile
-    option add *PdWindow*Label.background "grey" startupFile
-    option add *PdWindow*Checkbutton.background "grey" startupFile
-    option add *PdWindow*Menubutton.background "grey" startupFile
-    option add *PdWindow*Text.background "white" startupFile
-    option add *PdWindow*Entry.background "white" startupFile
+    # option add *PdWindow*Entry.highlightBackground "grey" startupFile
+    # option add *PdWindow*Frame.background "grey" startupFile
+    # option add *PdWindow*Label.background "grey" startupFile
+    # option add *PdWindow*Checkbutton.background "grey" startupFile
+    # option add *PdWindow*Menubutton.background "grey" startupFile
+    # option add *PdWindow*Text.background "white" startupFile
+    # option add *PdWindow*Entry.background "white" startupFile
 
     toplevel .pdwindow -class PdWindow
     ::pdwindow::update_title .pdwindow
+    # After creating the window, set appearance if on macOS
+    after idle {
+        update idletasks
+        if {[tk windowingsystem] eq "aqua"} {
+            catch {tk::unsupported::MacWindowStyle appearance .pdwindow auto}
+        }
+    }
 
     if {$::windowingsystem eq "x11"} {
         wm minsize .pdwindow 400 75
@@ -384,38 +450,35 @@ proc ::pdwindow::create_window {} {
     }
     wm geometry .pdwindow =500x400
 
-    frame .pdwindow.header -borderwidth 1 -relief flat -background lightgray
+    frame .pdwindow.header -borderwidth 1 -relief flat
     pack .pdwindow.header -side top -fill x -ipady 5
 
     frame .pdwindow.header.pad1
     pack .pdwindow.header.pad1 -side left -padx 12
 
     checkbutton .pdwindow.header.dsp -text [_ "DSP"] -variable ::dsp \
-        -takefocus 1 -background lightgray \
+        -takefocus 1 \
         -borderwidth 0  -command {pdsend "pd dsp $::dsp"}
     pack .pdwindow.header.dsp -side right -fill y -anchor e -padx 5 -pady 0
 
 # frame for DIO error and audio in/out labels
-    frame .pdwindow.header.ioframe -background lightgray
+    frame .pdwindow.header.ioframe
     pack .pdwindow.header.ioframe -side right -padx 30
 
 # I/O state label (shows I/O on/off/in-only/out-only)
     label .pdwindow.header.ioframe.iostate \
         -text [_ "Audio off"] -borderwidth 1 \
-        -background lightgray -foreground black \
         -takefocus 0
 
 # DIO error label
     label .pdwindow.header.ioframe.dio \
         -text [_ "Audio I/O error"] -borderwidth 1 \
-        -background lightgray -foreground lightgray \
         -takefocus 0
 
     pack .pdwindow.header.ioframe.iostate .pdwindow.header.ioframe.dio \
         -side top
 
-    label .pdwindow.header.loglabel -text [_ "Log:"] -anchor e \
-        -background lightgray
+    label .pdwindow.header.loglabel -text [_ "Log:"] -anchor e
     pack .pdwindow.header.loglabel -side left
 
     set loglevels {0 1 2 3 4}
@@ -426,7 +489,7 @@ proc ::pdwindow::create_window {} {
     lappend logmenuitems "4 [_ all]"
     set logmenu \
         [eval tk_optionMenu .pdwindow.header.logmenu ::loglevel $loglevels]
-    .pdwindow.header.logmenu configure -background lightgray
+    # .pdwindow.header.logmenu configure -background lightgray
     foreach i $loglevels {
         $logmenu entryconfigure $i -label [lindex $logmenuitems $i]
     }
@@ -439,7 +502,7 @@ proc ::pdwindow::create_window {} {
         -highlightthickness 0 -borderwidth 1 -relief flat \
         -yscrollcommand ".pdwindow.scroll set" -width 80 \
         -undo false -autoseparators false -maxundo 1 -takefocus 0
-    scrollbar .pdwindow.scroll -command ".pdwindow.text.internal yview"
+    ttk::scrollbar .pdwindow.scroll -command ".pdwindow.text.internal yview"
     pack .pdwindow.scroll -side right -fill y
     pack .pdwindow.text -side right -fill both -expand 1
     raise .pdwindow

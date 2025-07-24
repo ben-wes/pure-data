@@ -273,8 +273,8 @@ proc ::pd_menucommands::menu_aboutpd {} {
         wm group .aboutpd .
         ::pd_menus::menubar_for_dialog .aboutpd
         text .aboutpd.text -relief flat -borderwidth 0 -highlightthickness 0 \
-            -yscrollcommand ".aboutpd.scroll set" -background white
-        scrollbar .aboutpd.scroll -command ".aboutpd.text yview"
+            -yscrollcommand ".aboutpd.scroll set"
+        ttk::scrollbar .aboutpd.scroll -command ".aboutpd.text yview"
         pack .aboutpd.scroll -side right -fill y
         pack .aboutpd.text -side left -fill both -expand 1
         bind .aboutpd <$::modifier-Key-w> "destroy .aboutpd"

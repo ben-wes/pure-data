@@ -258,6 +258,9 @@ proc ::pd_colors::set_palette {bg fg sel gop} {
     set ::pd_colors::palette(foreground) $fg
     set ::pd_colors::palette(selected) $sel
     set ::pd_colors::palette(gop) $gop
+    if {[info commands ::pdwindow::update_colors] ne ""} {
+        ::pdwindow::update_colors
+    }
 }
 
 proc ::pd_colors::interpolate {color1 color2 amount} {
@@ -324,7 +327,6 @@ proc init_for_platform {} {
     switch -- $::windowingsystem {
         "x11" {
             set ::modifier "Control"
-            option add *PatchWindow*Canvas.background "white" startupFile
             # add control to show/hide hidden files in the open panel (load
             # the tk_getOpenFile dialog once, otherwise it will not work)
             catch {tk_getOpenFile -with-invalid-argument}
@@ -401,14 +403,11 @@ proc init_for_platform {} {
         }
         "win32" {
             set ::modifier "Control"
-            option add *PatchWindow*Canvas.background "white" startupFile
             # fix menu font size on Windows with tk scaling = 1
             font create menufont -family Tahoma -size -11
             option add *Menu.font menufont startupFile
             option add *HelpBrowser*font menufont startupFile
             option add *DialogWindow*font menufont startupFile
-            option add *PdWindow*font menufont startupFile
-            option add *ErrorDialog*font menufont startupFile
             # set file types that open/save recognize
             set ::filetypes \
                 [list \

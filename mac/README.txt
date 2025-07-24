@@ -237,6 +237,27 @@ NSRequiresAquaSystemAppearance key to true in both the app bundle's Info.plist
 and the GUI defaults preference file. This restriction may be removed in the
 future once Dark Mode is handled in the GUI.
 
+## Enabling Dark Mode on macOS
+
+To allow Pd to use system dark mode, ensure the following in your Pd app bundle:
+
+1. Open Pd-0.xx.app/Contents/Info.plist in a text editor.
+2. Remove the line:
+   <key>NSRequiresAquaSystemAppearance</key>
+   <true/>
+   or set it to:
+   <key>NSRequiresAquaSystemAppearance</key>
+   <false/>
+3. Save the file and restart Pd.
+
+If you want to automate this, you can run:
+
+    /usr/libexec/PlistBuddy -c "Delete :NSRequiresAquaSystemAppearance" Pd-0.xx.app/Contents/Info.plist
+
+or to set it to false:
+
+    /usr/libexec/PlistBuddy -c "Set :NSRequiresAquaSystemAppearance false" Pd-0.xx.app/Contents/Info.plist
+
 ## Debugging Releases
 
 On macOS 10.15+, apps must be signed with an entitlement to allow debugging.

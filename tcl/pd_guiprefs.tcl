@@ -170,7 +170,7 @@ proc ::pd_guiprefs::init {} {
             exec defaults write $::pd_guiprefs::domain ApplePressAndHoldEnabled -bool false
 
             # Disable Dark Mode for 10.14+
-            exec defaults write $::pd_guiprefs::domain NSRequiresAquaSystemAppearance -bool true
+            # exec defaults write $::pd_guiprefs::domain NSRequiresAquaSystemAppearance -bool true
         }
         "registry" {
             # windows uses registry
