@@ -683,7 +683,7 @@ void glob_midi_setapi(void *dummy, t_floatarg f)
             sys_alsa_close_midi();
         else
 #endif
-              sys_close_midi();
+            sys_close_midi();
         sys_midiapi = newapi;
         sys_reopen_midi();
     }
@@ -709,9 +709,16 @@ void sys_gui_midipreferences(void) {
     sys_reinit_midi();
 
         /* query the current MIDI settings */
-    sys_get_midi_devs(indevlist, &nindevs, outdevlist, &noutdevs,
-        MAXNDEV, DEVDESCSIZE);
-    sys_get_midi_params(&nindev, midiindev, &noutdev, midioutdev);
+    if (sched_get_using_audio() == SCHED_AUDIO_CALLBACK) 
+    {
+        pd_error(0, "Cannot load MIDI settings in 'callback' mode when audio is running. "
+            "Please turn off DSP and rescan devices.");
+        nindev = noutdev = nindevs = noutdevs = 0;
+    } else {
+        sys_get_midi_params(&nindev, midiindev, &noutdev, midioutdev);
+        sys_get_midi_devs(indevlist, &nindevs, outdevlist, &noutdevs,
+            MAXNDEV, DEVDESCSIZE);
+    }
 
     indevs[0] = outdevs[0] = "none";
     for (i = 0; i < nindevs; i++)
