@@ -67,18 +67,16 @@ proc ::pd_menus::create_menubar {} {
         }
         # some GUI-plugins do expect that common menus are available under
         # ${::patch_menubar}.${mymenu} (e.g. ".menubar.help")
-        set m [menu $::patch_menubar.$mymenu]
-        [format build_%s_menu $mymenu] ${m}
+        set patch_menu [menu $::patch_menubar.$mymenu]
+        [format build_%s_menu $mymenu] ${patch_menu}
         $::patch_menubar add cascade -label [_ [string totitle $mymenu]] \
-            -underline $underlined -menu $m
+            -underline $underlined -menu $patch_menu
+        # also create menus for pdwindow (mainly to allow macOS to add its
+        # "Pd Help" menu item in both "Help" menus)
+        set pdwindow_menu [menu $::pdwindow_menubar.$mymenu]
+        [format build_%s_menu $mymenu] ${pdwindow_menu}
         $::pdwindow_menubar add cascade -label [_ [string totitle $mymenu]] \
-            -underline $underlined -menu $m
-    }
-
-    # create separate help menu for pdwindow on macOS (system integration)
-    if {$::windowingsystem eq "aqua" && $::tcl_version >= 8.5} {
-        build_help_menu [menu $::pdwindow_menubar.help]
-        $::pdwindow_menubar entryconfigure "Help" -menu $::pdwindow_menubar.help
+            -underline $underlined -menu $pdwindow_menu
     }
 
     if {$::windowingsystem eq "win32"} {create_system_menu $::patch_menubar}
