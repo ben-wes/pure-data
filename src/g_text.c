@@ -995,7 +995,7 @@ static void gatom_param(t_gatom *x, t_symbol *sel, int argc, t_atom *argv)
     t_float width = atom_getfloatarg(0, argc, argv);
     t_float draglo = atom_getfloatarg(1, argc, argv);
     t_float draghi = atom_getfloatarg(2, argc, argv);
-    t_symbol *label = gatom_unescapit(atom_getsymbolarg(3, argc, argv));
+    t_symbol *label = gatom_unescapit(atom_gensym(argv + 3));
     t_float wherelabel = atom_getfloatarg(4, argc, argv);
     t_symbol *symfrom = gatom_unescapit(atom_getsymbolarg(5, argc, argv));
     t_symbol *symto = gatom_unescapit(atom_getsymbolarg(6, argc, argv));
@@ -1180,7 +1180,7 @@ void canvas_atom(t_glist *gl, t_atomtype type,
         x->a_draglo = atom_getfloatarg(3, argc, argv);
         x->a_draghi = atom_getfloatarg(4, argc, argv);
         x->a_wherelabel = (((int)atom_getfloatarg(5, argc, argv)) & 3);
-        x->a_label = gatom_unescapit(atom_getsymbolarg(6, argc, argv));
+        x->a_label = gatom_unescapit(atom_gensym(argv + 6));
         x->a_symfrom = gatom_unescapit(atom_getsymbolarg(7, argc, argv));
         if (*x->a_symfrom->s_name)
             pd_bind(&x->a_text.te_pd,
