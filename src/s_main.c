@@ -1548,7 +1548,7 @@ void sys_doflags(void)
     free(rcargv);
 }
 
-/* undo pdtl_encodedialog.  This allows dialogs to send spaces, commas,
+/* undo pdtk_encodedialog.  This allows dialogs to send spaces, commas,
     dollars, and semis down here. */
 t_symbol *sys_decodedialog(t_symbol *s)
 {

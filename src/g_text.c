@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include "m_pd.h"
+#include "s_stuff.h"
 #include "m_imp.h"
 
 #include "g_canvas.h"
@@ -995,7 +996,10 @@ static void gatom_param(t_gatom *x, t_symbol *sel, int argc, t_atom *argv)
     t_float width = atom_getfloatarg(0, argc, argv);
     t_float draglo = atom_getfloatarg(1, argc, argv);
     t_float draghi = atom_getfloatarg(2, argc, argv);
-    t_symbol *label = gatom_unescapit(atom_gensym(argv + 3));
+        /* decode dialog-encoded label, or fall back to float→symbol for numeric */
+    t_symbol *label = (argv[3].a_type == A_SYMBOL) ?
+        sys_decodedialog(atom_getsymbolarg(3, argc, argv)) : atom_gensym(argv + 3);
+    label = gatom_unescapit(label);
     t_float wherelabel = atom_getfloatarg(4, argc, argv);
     t_symbol *symfrom = gatom_unescapit(atom_getsymbolarg(5, argc, argv));
     t_symbol *symto = gatom_unescapit(atom_getsymbolarg(6, argc, argv));

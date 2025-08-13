@@ -14,6 +14,13 @@ array set gatomlabel_radio {}
 
 ############ pdtk_gatom_dialog -- run a gatom dialog #########
 
+proc ::dialog_gatom::encode_label {text} {
+    if {[string length $text] == 0 || [string index $text 0] eq "-"} {
+        set text "-$text"
+    }
+    return [::pdtk_encodedialog $text]
+}
+
 proc ::dialog_gatom::escape {sym} {
     if {[string length $sym] == 0} {
         set ret "-"
@@ -29,11 +36,10 @@ proc ::dialog_gatom::escape {sym} {
 
 proc ::dialog_gatom::unescape {sym} {
     if {[string equal -length 1 $sym "-"]} {
-        set ret [string replace $sym 0 0 ""]
-    } else {
-        set ret $sym
+        set sym [string replace $sym 0 0 ""]
     }
-    return [respace_text $ret]
+    # unescape, but preserve leading/trailing spaces unlike unspace_text
+    return [string map {{\ } " "} $sym]
 }
 
 proc ::dialog_gatom::apply {mytoplevel} {
@@ -43,7 +49,7 @@ proc ::dialog_gatom::apply {mytoplevel} {
         [$mytoplevel.width.entry get] \
         [$mytoplevel.limits.lower.entry get] \
         [$mytoplevel.limits.upper.entry get] \
-        [::dialog_gatom::escape [$mytoplevel.gatomlabel.name.entry get]] \
+        [::dialog_gatom::encode_label [$mytoplevel.gatomlabel.name.entry get]] \
         $gatomlabel_radio($mytoplevel) \
         [::dialog_gatom::escape [$mytoplevel.s_r.receive.entry get]] \
         [::dialog_gatom::escape [$mytoplevel.s_r.send.entry get]] \
