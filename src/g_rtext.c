@@ -36,6 +36,7 @@ struct _rtext
     t_word *x_words;        /* ... and if so, associated data */
     t_gobj *x_drawtext;     /* ... and the drawing instruction */
     t_glist *x_glist;       /* glist owner belongs to */
+    t_canvas *x_canvas;     /* cached top-level canvas for safe teardown */
     unsigned int x_color;      /* (A)RGB value */
     char x_tag[50];         /* tag for gui */
     struct _rtext *x_next;  /* next in editor list */
@@ -56,6 +57,7 @@ static t_rtext *rtext_add(t_glist *glist, t_rtext *last)
     x->x_words = 0;
     x->x_drawtext = 0;
     x->x_glist = glist;
+    x->x_canvas = glist_getcanvas(glist);
     x->x_color = THISGUI->i_foregroundcolor;
     x->x_selstart = x->x_selend = x->x_active = 0;
     x->x_buf = 0;
@@ -64,7 +66,7 @@ static t_rtext *rtext_add(t_glist *glist, t_rtext *last)
         glist_getcanvas(glist)->gl_editor->e_rtext = x;
     else last->x_next = x;
     x->x_next = 0;
-    sprintf(x->x_tag, ".x%lx.t%lx", (t_int)glist_getcanvas(x->x_glist),
+    sprintf(x->x_tag, ".x%lx.t%lx", (t_int)x->x_canvas,
         (t_int)x);
     x->x_xpix = x->x_ypix = 0;      /* empty rectangle */
     x->x_pixwidth = x->x_pixheight = -1;
@@ -143,22 +145,16 @@ void glist_deleteforscalar(t_glist *gl, t_scalar *sc)
     for (x1 = canvas->gl_editor->e_rtext; x1; x1 = xnext)
     {
         xnext = x1->x_next;
-        if (x1->x_scalar == sc)
-        {
-            if (xprev)
-                xprev->x_next = x1->x_next;
-            else canvas->gl_editor->e_rtext = x1->x_next;
-            if (x1->x_buf)
-                freebytes(x1->x_buf, x1->x_bufsize + 1); /* extra 0 byte */
-            freebytes(x1, sizeof(*x1));
-        }
+        if (x1->x_scalar == sc) rtext_free(x1);
         else xprev = x1;
     }
 }
 
 void rtext_free(t_rtext *x)
 {
-    t_glist *canvas = glist_getcanvas(x->x_glist);
+    t_glist *canvas = x ? x->x_canvas : 0;
+    if (!canvas || !canvas->gl_editor)
+        return;
     if (glist_textedfor(canvas) == x)
         glist_settexted(canvas, 0);
     if (canvas->gl_editor->e_rtext == x)
@@ -166,13 +162,18 @@ void rtext_free(t_rtext *x)
     else
     {
         t_rtext *e2;
-        for (e2 = canvas->gl_editor->e_rtext; e2;
-            e2 = e2->x_next)
-                if (e2->x_next == x)
+        int found = 0;
+        for (e2 = canvas->gl_editor->e_rtext; e2; e2 = e2->x_next)
         {
-            e2->x_next = x->x_next;
-            break;
+            if (e2->x_next == x)
+            {
+                e2->x_next = x->x_next;
+                found = 1;
+                break;
+            }
         }
+        if (!found)
+            return;
     }
     if (x->x_buf)
         freebytes(x->x_buf, x->x_bufsize + 1); /* extra 0 byte */
@@ -238,7 +239,7 @@ void rtext_unmouse(t_rtext *x)
         drawtext_gettype(x->x_drawtext,
             drawtext_gettemplate(x->x_drawtext), &onset) :
                 -1);
-    t_canvas *canvas = glist_getcanvas(x->x_glist);
+    t_canvas *canvas = x->x_canvas;
         /* if it's a scalar, deactivate; if a text box, deselect
             (which will deactivate but first check if text is dirty and
             possibly re-parse the text and update the object) */

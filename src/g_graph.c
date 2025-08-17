@@ -487,6 +487,17 @@ static void graph_goprect(t_glist *x, t_symbol *s, int argc, t_atom *argv)
         canvas_redraw(glist_getcanvas(x));
 }
 
+static void graph_gopvis(t_glist *x, t_symbol *s, int argc, t_atom *argv)
+{
+    int gop_status = atom_getfloatarg(0, argc, argv);
+    int hide_text =
+        (argc > 1) ? atom_getfloatarg(1, argc, argv) : x->gl_hidetext;
+    canvas_setgraph(x, gop_status, !gop_status);
+    x->gl_hidetext = hide_text;
+    x->gl_goprect = gop_status;
+    glist_redraw(x);
+}
+
 static void graph_xticks(t_glist *x,
     t_floatarg point, t_floatarg inc, t_floatarg f)
 {
@@ -1171,6 +1182,8 @@ void g_graph_setup_class(t_class *c)
     class_addmethod(c, (t_method)graph_bounds, gensym("bounds"),
         A_FLOAT, A_FLOAT, A_FLOAT, A_FLOAT, 0);
     class_addmethod(c, (t_method)graph_goprect, gensym("goprect"),
+        A_GIMME, 0);
+    class_addmethod(c, (t_method)graph_gopvis, gensym("gopvis"),
         A_GIMME, 0);
     class_addmethod(c, (t_method)graph_xticks, gensym("xticks"),
         A_FLOAT, A_FLOAT, A_FLOAT, 0);

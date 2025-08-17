@@ -2204,7 +2204,7 @@ static void canvas_donecanvasdialog(t_glist *x,
         }
     }
         /* LATER avoid doing 2 redraws here (possibly one inside setgraph) */
-    canvas_setgraph(x, graphme, 0);
+    canvas_setgraph(x, graphme, !graphme);
     canvas_dirty(x, 1);
     if (x->gl_owner && x->gl_owner->gl_havewindow)
         canvas_redraw(x->gl_owner);
