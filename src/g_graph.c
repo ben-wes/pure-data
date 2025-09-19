@@ -66,6 +66,29 @@ int canvas_setdeleting(t_canvas *x, int flag)
 
 void glist_deleteforscalar(t_glist *gl, t_scalar *sc);
 
+    /* TEMPORARY WORKAROUND: recursively erase iolets for GOP subpatches.
+    proper fix would be a clean object lifecycle management where visibility
+    cleanup happens automatically without needing manual recursive erasure.
+    see comment for glist_delete(). */
+static void glist_eraseiofor_recursive(t_glist *parent, t_glist *subpatch)
+{
+    t_gobj *y;
+    char tag[80];
+    if (subpatch->gl_isgraph && glist_isvisible(parent))
+    {
+        sprintf(tag, "graph%lx", (t_int)subpatch);
+        glist_eraseiofor(parent, &subpatch->gl_obj, tag);
+    }
+    for (y = subpatch->gl_list; y; y = y->g_next)
+    {
+        if (pd_class(&y->g_pd) == canvas_class)
+        {
+            t_glist *nested = (t_glist *)y;
+            glist_eraseiofor_recursive(parent, nested);
+        }
+    }
+}
+
     /* delete an object from a glist and free it */
 void glist_delete(t_glist *x, t_gobj *y)
 {
@@ -94,7 +117,7 @@ void glist_delete(t_glist *x, t_gobj *y)
             x->gl_editor->e_grab = 0;
         if (glist_isselected(x, y)) glist_deselect(x, y);
 
-            /* HACK -- we had phantom outlets not getting erased on the
+            /* HACK -- we had phantom outlets again not getting erased on the
             screen because the canvas_setdeleting() mechanism is too
             crude.  LATER carefully set up rules for when the rtexts
             should exist, so that they stay around until all the
@@ -104,11 +127,7 @@ void glist_delete(t_glist *x, t_gobj *y)
         {
             t_glist *gl = (t_glist *)y;
             if (gl->gl_isgraph && glist_isvisible(x))
-            {
-                char tag[80];
-                sprintf(tag, "graph%lx", (t_int)gl);
-                glist_eraseiofor(x, &gl->gl_obj, tag);
-            }
+                glist_eraseiofor_recursive(x, gl);
             else
             {
                 t_rtext *t;
