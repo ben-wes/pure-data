@@ -975,6 +975,7 @@ void canvas_free(t_canvas *x)
     t_gobj *y;
     t_canvas_private*private = x->gl_privatedata;
     int dspstate = canvas_suspend_dsp();
+    canvas_setdeleting(x, 1);  /* prevent unnecessary operations during destruction */
     canvas_noundo(x);
     if (canvas_whichfind == x)
         canvas_whichfind = 0;

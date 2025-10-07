@@ -925,6 +925,9 @@ static void graph_vis(t_gobj *gr, t_glist *parent_glist, int vis)
     else
     {
         pdgui_vmess(0, "crs", glist_getcanvas(x->gl_owner), "delete", tag);
+            /* don't bother hiding child objects if we're being deleted */
+        if (glist_getcanvas(x)->gl_isdeleting)
+            return;
         for (g = x->gl_list; g; g = g->g_next)
             gobj_vis(g, x, 0);
     }
