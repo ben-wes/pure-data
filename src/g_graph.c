@@ -108,8 +108,10 @@ void glist_delete(t_glist *x, t_gobj *y)
     wasdeleting = canvas_setdeleting(canvas, 1);
     if (x->gl_editor)
     {
-            /* if we've grabbed events from canvas release them */
-        if (canvas->gl_editor && canvas->gl_editor->e_grab == y)
+            /* release grabbed events if deleting the grabbed object
+            or a canvas (which may contain grabbed children) */
+        if (canvas->gl_editor && (canvas->gl_editor->e_grab == y ||
+            pd_class(&y->g_pd) == canvas_class))
             canvas->gl_editor->e_grab = 0;
                 /* perhaps we grabbed our own glist instead? don't know if
                 this ever happens: */
