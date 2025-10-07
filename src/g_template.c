@@ -3037,10 +3037,12 @@ static void drawtext_vis(t_gobj *z, t_glist *glist,
     }
     else
     {
+        t_glist *canvas = glist_getcanvas(glist);
         if (*x->x_label->s_name)
-            pdgui_vmess(0, "crs", glist_getcanvas(glist), "delete", tag);
+            pdgui_vmess(0, "crs", canvas, "delete", tag);
         rtext_erase(rtext);
-        rtext_free(rtext);
+        if (canvas->gl_editor)
+            rtext_free(rtext);
     }
 }
 

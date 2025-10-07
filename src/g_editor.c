@@ -1856,12 +1856,16 @@ void canvas_destroy_editor(t_glist *x)
     glist_noselect(x);
     if (x->gl_editor)
     {
-        t_rtext *rtext;
+        t_rtext *rtext, *next;
             /* this happens if we had activated an atom box in run mode: */
         if (glist_textedfor(x))
             rtext_activate(glist_textedfor(x), 0);
-        while ((rtext = x->gl_editor->e_rtext))
+            /* use safe iteration - save next before freeing */
+        for (rtext = x->gl_editor->e_rtext; rtext; rtext = next)
+        {
+            next = rtext_getnext(rtext);
             rtext_free(rtext);
+        }
         editor_free(x->gl_editor, x);
         x->gl_editor = 0;
     }

@@ -159,7 +159,7 @@ void glist_delete(t_glist *x, t_gobj *y)
         glist_deleteforscalar(x, (t_scalar *)y);
     }
     pd_free(&y->g_pd);
-    if (rtext)
+    if (rtext && canvas->gl_editor)
         rtext_free(rtext);
     if (chkdsp) canvas_update_dsp();
     if (drawcommand)

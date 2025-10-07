@@ -135,25 +135,21 @@ t_rtext *glist_getforscalar(t_glist *gl, t_scalar *sc, t_word *words,
     /* delete all rtexts for a scalar */
 void glist_deleteforscalar(t_glist *gl, t_scalar *sc)
 {
-    t_rtext *x1, *xprev = 0, *xnext = 0;
+    t_rtext *x1;
     t_glist *canvas = glist_getcanvas(gl);
     if (!canvas->gl_editor)
         return;
 
-    for (x1 = canvas->gl_editor->e_rtext; x1; x1 = xnext)
-    {
-        xnext = x1->x_next;
+        /* just mark scalar as NULL - don't free rtexts here.
+        they'll be cleaned up when the canvas editor is destroyed. */
+    for (x1 = canvas->gl_editor->e_rtext; x1; x1 = x1->x_next)
         if (x1->x_scalar == sc)
-        {
-            if (xprev)
-                xprev->x_next = x1->x_next;
-            else canvas->gl_editor->e_rtext = x1->x_next;
-            if (x1->x_buf)
-                freebytes(x1->x_buf, x1->x_bufsize + 1); /* extra 0 byte */
-            freebytes(x1, sizeof(*x1));
-        }
-        else xprev = x1;
-    }
+            x1->x_scalar = NULL;
+}
+
+t_rtext *rtext_getnext(t_rtext *x)
+{
+    return x ? x->x_next : NULL;
 }
 
 void rtext_free(t_rtext *x)
@@ -162,7 +158,7 @@ void rtext_free(t_rtext *x)
     if (glist_textedfor(canvas) == x)
         glist_settexted(canvas, 0);
     if (!canvas->gl_editor)
-        bug("rtext_free");
+        goto cleanup; /* LATER: fix rtext lifecycle, revert to bug("rtext_free") */
     else if (canvas->gl_editor->e_rtext == x)
         canvas->gl_editor->e_rtext = x->x_next;
     else
@@ -176,6 +172,7 @@ void rtext_free(t_rtext *x)
             break;
         }
     }
+cleanup:
     if (x->x_buf)
         freebytes(x->x_buf, x->x_bufsize + 1); /* extra 0 byte */
     freebytes(x, sizeof(*x));
