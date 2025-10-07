@@ -946,9 +946,10 @@ int glist_istoplevel(t_glist *x)
 
 int glist_getfont(t_glist *x)
 {
-    while (!x->gl_env)
-        if (!(x = x->gl_owner))
-            bug("t_canvasenvironment");
+    while (x && !x->gl_env)
+        x = x->gl_owner;
+    if (!x)
+        return (sys_defaultfont);  /* safe default during incomplete initialization */
     return (x->gl_font);
 }
 
