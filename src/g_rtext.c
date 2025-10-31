@@ -669,8 +669,12 @@ static void rtext_senditup(t_rtext *x, int action, int *widthp, int *heightp,
             }
         }
     }
-    x->x_pixwidth = *widthp;
-    x->x_pixheight = *heightp;
+        /* only update cached dimensions for relevant actions */
+    if (action != SEND_CHECK)
+    {
+        x->x_pixwidth = *widthp;
+        x->x_pixheight = *heightp;
+    }
     if (tempbuf != smallbuf)
         t_freebytes(tempbuf, 2 * x->x_bufsize + 1);
 }
@@ -688,9 +692,9 @@ void rtext_retext(t_rtext *x)
     x->x_buf = resizebytes(x->x_buf, x->x_bufsize, x->x_bufsize+1);
     x->x_buf[x->x_bufsize] = 0;
     rtext_findscreenlocation(x);
-        /* force dimension recalculation after text conversion */
-    x->x_pixwidth = x->x_pixheight = -1;
-    rtext_senditup(x, SEND_UPDATE, &w, &h, &indx);
+        /* only update if already drawn */
+    if (x->x_pixwidth >= 0)
+        rtext_senditup(x, SEND_UPDATE, &w, &h, &indx);
 }
 
     /* make text buffer for scalar's drawtext instruction and draw it */
@@ -727,6 +731,7 @@ void rtext_draw(t_rtext *x)
 void rtext_erase(t_rtext *x)
 {
     pdgui_vmess(0, "crs", glist_getcanvas(x->x_glist), "delete", x->x_tag);
+    x->x_pixwidth = x->x_pixheight = -1;
 }
 
 void rtext_displace(t_rtext *x, int dx, int dy)
