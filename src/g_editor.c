@@ -1985,6 +1985,9 @@ void canvas_vis(t_canvas *x, t_floatarg f)
                        subpatch's zoom level was changed before being closed */
                 if(x->gl_zoom != gl2->gl_zoom)
                     canvas_zoom(x, gl2->gl_zoom);
+                    /* clear rtexts in parent to force coordinate recalculation
+                       when objects are redrawn on parent after subpatch closes */
+                glist_clearrtexts(gl2);
                 gobj_vis(&x->gl_gobj, gl2, 1);
             }
         }
