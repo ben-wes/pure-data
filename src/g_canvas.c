@@ -559,14 +559,17 @@ static void canvas_coords(t_glist *x, t_symbol *s, int argc, t_atom *argv)
     x->gl_y2 = atom_getfloatarg(3, argc, argv);
     x->gl_pixwidth = atom_getfloatarg(4, argc, argv);
     x->gl_pixheight = atom_getfloatarg(5, argc, argv);
-    if (argc <= 7)
-        canvas_setgraph(x, atom_getfloatarg(6, argc, argv), 1);
-    else
-    {
-        x->gl_xmargin = atom_getfloatarg(7, argc, argv);
-        x->gl_ymargin = atom_getfloatarg(8, argc, argv);
+    x->gl_xmargin = atom_getfloatarg(7, argc, argv);
+    x->gl_ymargin = atom_getfloatarg(8, argc, argv);
+        /* only call canvas_setgraph if graph state actually changed */
+    if (atom_getfloatarg(6, argc, argv) != glist_isgraph(x))
         canvas_setgraph(x, atom_getfloatarg(6, argc, argv), 0);
-    }
+    else if (x->gl_owner && !x->gl_isclone && glist_isvisible(x->gl_owner))
+            /* graph state didn't change, but GOP rect did - redraw parent */
+        canvas_redraw(glist_getcanvas(x->gl_owner));
+        /* if subpatch window is open, redraw it (includes red GOP frame) */
+    if (x->gl_havewindow)
+        canvas_redraw(x);
 }
 
 
