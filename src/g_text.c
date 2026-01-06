@@ -1520,17 +1520,16 @@ static const t_widgetbehavior gatom_widgetbehavior =
 void glist_drawiofor(t_glist *glist, t_object *ob, int firsttime,
     const char *tag, int x1, int y1, int x2, int y2)
 {
-    /* skip drawing iolets if we're inside a GOP subpatch */
-    if (glist_isgraph(glist) && !glist->gl_havewindow
-        && glist->gl_owner && !glist->gl_isclone)
-        return;
-
     int n = obj_noutlets(ob), nplus = (n == 1 ? 1 : n-1), i;
     int width = x2 - x1;
     int iow = IOWIDTH * glist->gl_zoom;
     int ih = IHEIGHT * glist->gl_zoom, oh = OHEIGHT * glist->gl_zoom;
     char *tags[2];
     char tagbuf[128];
+
+    /* skip drawing iolets if we're inside a GOP subpatch */
+    if (glist_isgraph(glist) && !glist->gl_havewindow)
+        return;
 
     /* draw over border, so assume border width = 1 pixel * glist->gl_zoom */
     for (i = 0; i < n; i++)

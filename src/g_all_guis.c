@@ -1035,8 +1035,7 @@ static void iemgui_draw(t_iemgui *x, t_glist *glist, int mode)
         break;
     default:
         /* skip drawing iolets if we're inside a GOP subpatch */
-        if (glist_isgraph(glist) && !glist->gl_havewindow
-            && glist->gl_owner && !glist->gl_isclone)
+        if (glist_isgraph(glist) && !glist->gl_havewindow)
             return;
         if(x->x_private->p_widget.draw_iolets)
             x->x_private->p_widget.draw_iolets(x, glist, mode - IEM_GUI_DRAW_MODE_IO);
