@@ -107,7 +107,7 @@ proc pdtk_textwindow_send {name} {
               {incr i 1} {
             set lin [$name.text get $i.0 $i.end]
             if {$lin != ""} {
-                set lin [string map {"," " \\, " ";" " \\; " "$" "\\$"} $lin]
+                set lin [string map {"\\" "\\\\" "," " \\, " ";" " \\; " "$" "\\$"} $lin]
                 pdsend [concat $name addline $lin]
             }
         }
