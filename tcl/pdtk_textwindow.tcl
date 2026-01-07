@@ -81,6 +81,8 @@ proc pdtk_textwindow_appendatoms {name atoms} {
             # message separator ';' starts a new line
             set sep "\n"
         } else {
+            # unescape characters for display
+            set atom [::pdtk_text::unescape $atom]
             # escape spaces in symbols
             set atom [string map {" " "\\ " ";" "\\;"} $atom]
             # atoms are separated by space
