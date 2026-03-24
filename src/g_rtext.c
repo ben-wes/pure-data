@@ -633,14 +633,15 @@ static void rtext_senditup(t_rtext *x, int action, int *widthp, int *heightp,
             character is an unescaped backslash ('\') which would have confused
             tcl/tk by escaping the close brace otherwise.  The GUI code
             drops the last character in the string. */
-        pdgui_vmess("pdtk_text_new", "c S ii s i k",
+        pdgui_vmess("pdtk_text_new", "c S ii s i k i",
             canvas,
             2, tags,
             x->x_xpix + lmargin, x->x_ypix + tmargin,
             tempbuf,
             guifontsize,
             (x->x_text && glist_isselected(x->x_glist, &x->x_text->te_g)?
-                THISGUI->i_selectcolor : x->x_color));
+                THISGUI->i_selectcolor : x->x_color),
+            !x->x_text);
     }
     else if (action == SEND_UPDATE)
     {

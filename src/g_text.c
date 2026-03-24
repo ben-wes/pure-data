@@ -1132,13 +1132,14 @@ static void gatom_vis(t_gobj *z, t_glist *glist, int vis)
                 "text"
             };
             gatom_getwherelabel(x, glist, &x1, &y1);
-            pdgui_vmess("pdtk_text_new", "cS ff s ik",
+            pdgui_vmess("pdtk_text_new", "cS ff s ik i",
                 glist_getcanvas(glist),
                 3, tags,
                 (double)x1, (double)y1,
                 canvas_realizedollar(x->a_glist, x->a_label)->s_name,
                 gatom_fontsize(x) * glist_getzoom(glist),
-                THISGUI->i_foregroundcolor);
+                THISGUI->i_foregroundcolor,
+                0);
         }
         else pdgui_vmess(0, "rcr", "pdtk_canvas_delete",
             glist_getcanvas(glist), buf);

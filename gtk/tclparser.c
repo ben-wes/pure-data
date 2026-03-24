@@ -97,13 +97,13 @@ static int cmd_canvas(ClientData cdata, Tcl_Interp *interp,
 }
 
     /* as in: pdtk_text_new .x39ca5610.c
-        {{.x39ca5610.t39d1b7f0} {atom} {text} } 103 17 {0} 11 black ; */
+        {{.x39ca5610.t39d1b7f0} {label} {text} } 103 17 {0} 11 black 0 ; */
 static int cmd_pdtk_text_new(ClientData cdata, Tcl_Interp *interp,
     int objc, Tcl_Obj *const objv[])
 {
     Tcl_HashEntry *hash;
-    if (objc != 8)
-        fprintf(stderr, "obj count %d, not 8\n", objc);
+    if (objc != 9)
+        fprintf(stderr, "obj count %d, not 9\n", objc);
     else if (!(hash = Tcl_FindHashEntry(&tcl_canvaslist,
         Tcl_GetString(objv[1]))))
             fprintf(stderr, "cmd_pdtk_text_new: canvas %s not found\n",
@@ -113,7 +113,6 @@ static int cmd_pdtk_text_new(ClientData cdata, Tcl_Interp *interp,
         t_canvas *c = (t_canvas *)Tcl_GetHashValue(hash);
         double px, py, fontsize;
         char tag[80], grouptag[80], *endtag;
-        int blue;
         if (!cmd_get_tag(Tcl_GetString(objv[2]), tag, &endtag) ||
             !cmd_get_tag(endtag, grouptag, 0))
         {

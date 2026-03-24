@@ -16,16 +16,19 @@ namespace eval ::pdtk_text:: {
 # the last character should have been a backslash ('\') which would have
 # had the effect of escaping the closing brace.  We trim off the last
 # character in the string to compensate via [string range].
-proc pdtk_text_new {tkcanvas tags x y text font_size color} {
+# optional last arg: scalar drawtext (1) skips triple-click select-all only.
+proc pdtk_text_new {tkcanvas tags x y text font_size color {scalar 0}} {
     $tkcanvas create text $x $y -tags $tags \
         -text [::pdtk_text::unescape $text] \
             -fill $color -anchor nw -font [get_font_for_size $font_size]
     set mytag [lindex $tags 0]
     $tkcanvas bind $mytag <Home> "$tkcanvas icursor $mytag 0"
     $tkcanvas bind $mytag <End>  "$tkcanvas icursor $mytag end"
-    # select all
-    $tkcanvas bind $mytag <Triple-ButtonRelease-1>  \
-        "pdtk_text_selectall $tkcanvas $mytag"
+    # select all (object text only; scalars skip — avoids spurious selection)
+    if {!$scalar} {
+        $tkcanvas bind $mytag <Triple-ButtonRelease-1>  \
+            "pdtk_text_selectall $tkcanvas $mytag"
+    }
     if {$::windowingsystem eq "aqua"} { # emacs bindings for Mac OS X
         $tkcanvas bind $mytag <Control-a> "$tkcanvas icursor $mytag 0"
         $tkcanvas bind $mytag <Control-e> "$tkcanvas icursor $mytag end"
