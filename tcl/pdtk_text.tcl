@@ -68,7 +68,7 @@ proc pdtk_text_selectall {tkcanvas mytag} {
 # de/activate a text box for editing based on $editing flag
 proc pdtk_text_editing {mytoplevel tag editing} {
     set tkcanvas [tkcanvas_name $mytoplevel]
-    if {$editing == 0} {selection clear $tkcanvas}
+    if {$editing == 0} {$tkcanvas select clear}
     $tkcanvas focus $tag
     set ::editingtext($mytoplevel) $editing
 }
