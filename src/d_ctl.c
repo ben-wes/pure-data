@@ -8,6 +8,7 @@
 
 #include "m_pd.h"
 #include "math.h"
+#include <string.h>
 
 /* -------------------------- sig~ ------------------------------ */
 static t_class *sig_tilde_class;
@@ -217,6 +218,15 @@ static void line_tilde_setup(void)
 /* -------------------------- vline~ ------------------------------ */
 static t_class *vline_tilde_class;
 #include "s_stuff.h"    /* for DEFDACBLKSIZE; this should be in m_pd.h */
+
+typedef enum
+{
+    VLINE_UNIT_MSEC = 0,
+    VLINE_UNIT_SEC,
+    VLINE_UNIT_MIN,
+    VLINE_UNIT_SAMP
+} t_vline_unit;
+
 typedef struct _vseg
 {
     double s_targettime;
@@ -233,7 +243,6 @@ typedef struct _vline
     double x_referencetime;
     double x_lastlogicaltime;
     double x_nextblocktime;
-    double x_samppermsec;
     double x_msecpersamp;
     double x_targettime;
     t_sample x_target;
@@ -242,7 +251,53 @@ typedef struct _vline
     t_vseg *x_list;
     t_vseg *x_list_tail;
     int x_warned_dspoff;
+    t_vline_unit x_unit;
 } t_vline;
+
+    /* convert delay/duration inlet values to ms (same coordinates as clock_gettimesince) */
+static double vline_float_to_ms(t_vline *x, t_float v)
+{
+    switch (x->x_unit)
+    {
+    case VLINE_UNIT_MSEC:
+        return (v);
+    case VLINE_UNIT_SEC:
+        return (v * 1000.);
+    case VLINE_UNIT_MIN:
+        return (v * 60000.);
+    case VLINE_UNIT_SAMP:
+        return (v * x->x_msecpersamp);
+    default:
+        return (v);
+    }
+}
+
+    /* return 1 if ok, 0 if unknown symbol */
+static int vline_apply_unit_symbol(t_vline *x, t_symbol *sym)
+{
+    const char *s = sym->s_name;
+    if (!strcmp(s, "millisecond") || !strcmp(s, "milliseconds") ||
+        !strcmp(s, "msec"))
+        x->x_unit = VLINE_UNIT_MSEC;
+    else if (!strncmp(s, "sec", 3)) /* second, seconds, sec */
+        x->x_unit = VLINE_UNIT_SEC;
+    else if (!strncmp(s, "min", 3)) /* minute, minutes, min */
+        x->x_unit = VLINE_UNIT_MIN;
+    else if (!strncmp(s, "sam", 3)) /* sample, samples, samp */
+        x->x_unit = VLINE_UNIT_SAMP;
+    else
+    {
+        pd_error(x,
+            "vline~: unknown unit '%s' (use msec, sec, min, samp, ...)", s);
+        return (0);
+    }
+    return (1);
+}
+
+static void vline_tilde_unit(t_vline *x, t_symbol *s)
+{
+    vline_apply_unit_symbol(x, s);
+}
 
 static t_int *vline_tilde_perform(t_int *w)
 {
@@ -325,7 +380,7 @@ static void vline_tilde_float(t_vline *x, t_float f)
     double timenow = clock_gettimesince(x->x_referencetime);
     t_float inlet1 = (x->x_inlet1 < 0 ? 0 : x->x_inlet1);
     t_float inlet2 = x->x_inlet2;
-    double starttime = timenow + inlet2;
+    double dur_ms, delay_ms, starttime;
     t_vseg *s1, *s2, *deletefrom = 0, *snew;
     if (PD_BIGORSMALL(f))
         f = 0;
@@ -337,6 +392,9 @@ static void vline_tilde_float(t_vline *x, t_float f)
         vline_tilde_stop(x);
         return;
     }
+    delay_ms = vline_float_to_ms(x, inlet2);
+    dur_ms = vline_float_to_ms(x, inlet1);
+    starttime = timenow + delay_ms;
     snew = (t_vseg *)t_getbytes(sizeof(*snew));
     if (!pd_getdspstate() && !x->x_warned_dspoff)
     {
@@ -350,7 +408,7 @@ static void vline_tilde_float(t_vline *x, t_float f)
         at that time.) */
     if (x->x_list_tail && (x->x_list_tail->s_starttime < starttime ||
             (x->x_list_tail->s_starttime == starttime &&
-                x->x_list_tail->s_targettime <= x->x_list_tail->s_starttime && inlet1 > 0)))
+                x->x_list_tail->s_targettime <= x->x_list_tail->s_starttime && dur_ms > 0)))
     {
         deletefrom = 0;
         x->x_list_tail->s_next = snew;
@@ -360,7 +418,7 @@ static void vline_tilde_float(t_vline *x, t_float f)
         the equal one was instantaneous and the new one isn't. */
     else if (!x->x_list || x->x_list->s_starttime > starttime ||
         (x->x_list->s_starttime == starttime &&
-            (x->x_list->s_targettime > x->x_list->s_starttime || inlet1 <= 0)))
+            (x->x_list->s_targettime > x->x_list->s_starttime || dur_ms <= 0)))
     {
         deletefrom = x->x_list;
         x->x_list = snew;
@@ -371,7 +429,7 @@ static void vline_tilde_float(t_vline *x, t_float f)
         {
             if (s2->s_starttime > starttime ||
                 (s2->s_starttime == starttime &&
-                    (s2->s_targettime > s2->s_starttime || inlet1 <= 0)))
+                    (s2->s_targettime > s2->s_starttime || dur_ms <= 0)))
             {
                 deletefrom = s2;
                 s1->s_next = snew;
@@ -391,7 +449,7 @@ static void vline_tilde_float(t_vline *x, t_float f)
     snew->s_next = 0;
     snew->s_target = f;
     snew->s_starttime = starttime;
-    snew->s_targettime = starttime + inlet1;
+    snew->s_targettime = starttime + dur_ms;
     x->x_list_tail = snew;
     x->x_inlet1 = x->x_inlet2 = 0;
 }
@@ -400,13 +458,13 @@ static void vline_tilde_dsp(t_vline *x, t_signal **sp)
 {
     x->x_warned_dspoff = 0;
     dsp_add(vline_tilde_perform, 3, x, sp[0]->s_vec, (t_int)sp[0]->s_n);
-    x->x_samppermsec = ((double)(sp[0]->s_sr)) / 1000;
     x->x_msecpersamp = ((double)1000) / sp[0]->s_sr;
 }
 
-static void *vline_tilde_new(void)
+static void *vline_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
     t_vline *x = (t_vline *)pd_new(vline_tilde_class);
+    double sr = (double)canvas_getsr((t_canvas *)canvas_getcurrent());
     outlet_new(&x->x_obj, gensym("signal"));
     floatinlet_new(&x->x_obj, &x->x_inlet1);
     floatinlet_new(&x->x_obj, &x->x_inlet2);
@@ -417,20 +475,31 @@ static void *vline_tilde_new(void)
     x->x_list = 0;
     x->x_list_tail = 0;
     x->x_warned_dspoff = 0;
-    x->x_samppermsec = 0;
+    x->x_msecpersamp = (sr > 0) ? (1000. / sr) : 0;
     x->x_targettime = 1e20;
+    x->x_unit = VLINE_UNIT_MSEC;
+    if (argc >= 1)
+    {
+        if (argv[0].a_type == A_SYMBOL)
+            vline_apply_unit_symbol(x, argv[0].a_w.w_symbol);
+        else
+            pd_error(x, "vline~: optional argument must be a symbol (time unit)");
+    }
+    (void)s;
     return (x);
 }
 
 static void vline_tilde_setup(void)
 {
-    vline_tilde_class = class_new(gensym("vline~"), vline_tilde_new,
-        (t_method)vline_tilde_stop, sizeof(t_vline), 0, 0);
+    vline_tilde_class = class_new(gensym("vline~"), (t_newmethod)vline_tilde_new,
+        (t_method)vline_tilde_stop, sizeof(t_vline), 0, A_GIMME, 0);
     class_addfloat(vline_tilde_class, (t_method)vline_tilde_float);
     class_addmethod(vline_tilde_class, (t_method)vline_tilde_dsp,
         gensym("dsp"), A_CANT, 0);
     class_addmethod(vline_tilde_class, (t_method)vline_tilde_stop,
         gensym("stop"), 0);
+    class_addmethod(vline_tilde_class, (t_method)vline_tilde_unit,
+        gensym("unit"), A_SYMBOL, 0);
 }
 
 /* -------------------------- snapshot~ ------------------------------ */
