@@ -8,56 +8,45 @@
 
 /* ---------------- hip~ - 1-pole 1-zero hipass filter. ----------------- */
 
-typedef struct hipctl
-{
-    t_sample c_x;
-    t_sample c_coef;
-} t_hipctl;
-
 typedef struct sighip
 {
     t_object x_obj;
-    t_float x_sr;
-    t_float x_hz;
-    t_hipctl x_cspace;
-    t_float x_f;
+    t_float x_conversion;   /* frequency-to-coefficient conversion factor */
+    t_sample x_last;        /* last filter state */
+    t_float x_hz;           /* cutoff frequency in hz (for scalar inlet) */
+    t_sample x_coef;        /* filter coefficient (for scalar inlet) */
+    t_float x_f;            /* value of first inlet if unconnected */
 } t_sighip;
 
 t_class *sighip_class;
-static void sighip_ft1(t_sighip *x, t_floatarg f);
 
 static void *sighip_new(t_floatarg f)
 {
     t_sighip *x = (t_sighip *)pd_new(sighip_class);
-    inlet_new(&x->x_obj, &x->x_obj.ob_pd, gensym("float"), gensym("ft1"));
+    signalinlet_new(&x->x_obj, f);
     outlet_new(&x->x_obj, &s_signal);
-    x->x_sr = DEFAULTSRATE;
-    x->x_cspace.c_x = 0;
-    sighip_ft1(x, f);
+    x->x_conversion = x->x_last = x->x_hz = x->x_coef = 0;
     x->x_f = 0;
     return (x);
 }
 
-static void sighip_ft1(t_sighip *x, t_floatarg f)
+static t_int *sighip_perf_scalar(t_int *w)
 {
-    if (f < 0) f = 0;
-    x->x_hz = f;
-    x->x_cspace.c_coef = 1 - f * (2 * 3.14159) / x->x_sr;
-    if (x->x_cspace.c_coef < 0)
-        x->x_cspace.c_coef = 0;
-    else if (x->x_cspace.c_coef > 1)
-        x->x_cspace.c_coef = 1;
-}
-
-static t_int *sighip_perform(t_int *w)
-{
-    t_sample *in = (t_sample *)(w[1]);
-    t_sample *out = (t_sample *)(w[2]);
-    t_hipctl *c = (t_hipctl *)(w[3]);
-    int n = (int)w[4];
-    int i;
-    t_sample last = c->c_x;
-    t_sample coef = c->c_coef;
+    t_sighip *x = (t_sighip *)(w[1]);
+    t_sample *in = (t_sample *)(w[2]);
+    t_sample newhz = *(t_sample *)(w[3]);
+    t_sample *out = (t_sample *)(w[4]);
+    int i, n = (int)w[5];
+    t_sample last = x->x_last, coef;
+    if (newhz != x->x_hz)
+    {
+        x->x_hz = newhz;
+        coef = 1 - newhz * x->x_conversion;
+        if (coef > 1) coef = 1;
+        else if (coef < 0) coef = 0;
+        x->x_coef = coef;
+    }
+    else coef = x->x_coef;
     if (coef < 1)
     {
         t_sample normal = 0.5*(1+coef);
@@ -69,26 +58,67 @@ static t_int *sighip_perform(t_int *w)
         }
         if (PD_BIGORSMALL(last))
             last = 0;
-        c->c_x = last;
+        x->x_last = last;
     }
     else
     {
         for (i = 0; i < n; i++)
             *out++ = *in++;
-        c->c_x = 0;
+        x->x_last = 0;
     }
-    return (w+5);
+    return (w+6);
 }
 
-static t_int *sighip_perform_old(t_int *w)
+static t_int *sighip_perf_vector(t_int *w)
 {
-    t_sample *in = (t_sample *)(w[1]);
-    t_sample *out = (t_sample *)(w[2]);
-    t_hipctl *c = (t_hipctl *)(w[3]);
-    int n = (int)w[4];
-    int i;
-    t_sample last = c->c_x;
-    t_sample coef = c->c_coef;
+    t_sighip *x = (t_sighip *)(w[1]);
+    t_sample *in1 = (t_sample *)(w[2]);
+    t_sample *in2 = (t_sample *)(w[3]);
+    t_sample *out = (t_sample *)(w[4]);
+    int i, n = (int)w[5];
+    t_sample last = x->x_last;
+    for (i = 0; i < n; i++)
+    {
+        t_sample coef = 1 - *in2++ * x->x_conversion;
+        t_sample new;
+        if (coef > 1) coef = 1;
+        else if (coef < 0) coef = 0;
+        if (coef < 1)
+        {
+            t_sample normal = 0.5*(1+coef);
+            new = *in1++ + coef * last;
+            *out++ = normal * (new - last);
+            last = new;
+        }
+        else
+        {
+            *out++ = *in1++;
+            last = 0;
+        }
+    }
+    if (PD_BIGORSMALL(last))
+        last = 0;
+    x->x_last = last;
+    return (w+6);
+}
+
+static t_int *sighip_perf_scalar_old(t_int *w)
+{
+    t_sighip *x = (t_sighip *)(w[1]);
+    t_sample *in = (t_sample *)(w[2]);
+    t_sample newhz = *(t_sample *)(w[3]);
+    t_sample *out = (t_sample *)(w[4]);
+    int i, n = (int)w[5];
+    t_sample last = x->x_last, coef;
+    if (newhz != x->x_hz)
+    {
+        x->x_hz = newhz;
+        coef = 1 - newhz * x->x_conversion;
+        if (coef > 1) coef = 1;
+        else if (coef < 0) coef = 0;
+        x->x_coef = coef;
+    }
+    else coef = x->x_coef;
     if (coef < 1)
     {
         for (i = 0; i < n; i++)
@@ -99,40 +129,71 @@ static t_int *sighip_perform_old(t_int *w)
         }
         if (PD_BIGORSMALL(last))
             last = 0;
-        c->c_x = last;
+        x->x_last = last;
     }
     else
     {
         for (i = 0; i < n; i++)
             *out++ = *in++;
-        c->c_x = 0;
+        x->x_last = 0;
     }
-    return (w+5);
+    return (w+6);
+}
+
+static t_int *sighip_perf_vector_old(t_int *w)
+{
+    t_sighip *x = (t_sighip *)(w[1]);
+    t_sample *in1 = (t_sample *)(w[2]);
+    t_sample *in2 = (t_sample *)(w[3]);
+    t_sample *out = (t_sample *)(w[4]);
+    int i, n = (int)w[5];
+    t_sample last = x->x_last;
+    for (i = 0; i < n; i++)
+    {
+        t_sample coef = 1 - *in2++ * x->x_conversion;
+        t_sample new;
+        if (coef > 1) coef = 1;
+        else if (coef < 0) coef = 0;
+        if (coef < 1)
+        {
+            new = *in1++ + coef * last;
+            *out++ = new - last;
+            last = new;
+        }
+        else
+        {
+            *out++ = *in1++;
+            last = 0;
+        }
+    }
+    if (PD_BIGORSMALL(last))
+        last = 0;
+    x->x_last = last;
+    return (w+6);
 }
 
 static void sighip_dsp(t_sighip *x, t_signal **sp)
 {
-    x->x_sr = sp[0]->s_sr;
-    sighip_ft1(x,  x->x_hz);
-    dsp_add((pd_compatibilitylevel > 43 ?
-        sighip_perform : sighip_perform_old),
-            4, sp[0]->s_vec, sp[1]->s_vec, &x->x_cspace, (t_int)sp[0]->s_n);
+    x->x_conversion = (2*3.14159)/sp[0]->s_sr;
+    x->x_hz = x->x_coef = 0;    /* this will be updated at perf time */
+    dsp_add((pd_compatibilitylevel > 43
+            ? (sp[1]->s_n > 1 ? sighip_perf_vector : sighip_perf_scalar)
+            : (sp[1]->s_n > 1 ? sighip_perf_vector_old : sighip_perf_scalar_old)),
+        5, x, sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec, (t_int)sp[0]->s_n);
 }
 
 static void sighip_clear(t_sighip *x, t_floatarg q)
 {
-    x->x_cspace.c_x = 0;
+    x->x_last = 0;
 }
 
 void sighip_setup(void)
 {
     sighip_class = class_new(gensym("hip~"), (t_newmethod)sighip_new, 0,
-        sizeof(t_sighip), 0, A_DEFFLOAT, 0);
+        sizeof(t_sighip), CLASS_NOPROMOTESIG, A_DEFFLOAT, 0);
     CLASS_MAINSIGNALIN(sighip_class, t_sighip, x_f);
     class_addmethod(sighip_class, (t_method)sighip_dsp,
         gensym("dsp"), A_CANT, 0);
-    class_addmethod(sighip_class, (t_method)sighip_ft1,
-        gensym("ft1"), A_FLOAT, 0);
     class_addmethod(sighip_class, (t_method)sighip_clear, gensym("clear"), 0);
 }
 
