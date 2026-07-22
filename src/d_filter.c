@@ -302,23 +302,18 @@ void siglop_setup(void)
 
 /* ---------------- bp~ - 2-pole bandpass filter. ----------------- */
 
-typedef struct bpctl
-{
-    t_sample c_x1;
-    t_sample c_x2;
-    t_sample c_coef1;
-    t_sample c_coef2;
-    t_sample c_gain;
-} t_bpctl;
-
 typedef struct sigbp
 {
     t_object x_obj;
-    t_float x_sr;
-    t_float x_freq;
-    t_float x_q;
-    t_bpctl x_cspace;
-    t_float x_f;
+    t_float x_conversion;   /* frequency-to-omega conversion factor (2*pi/sr) */
+    t_sample x_last;        /* filter state (x1) */
+    t_sample x_prev;        /* filter state (x2) */
+    t_float x_freq;         /* center frequency in hz (for scalar inlets) */
+    t_float x_q;            /* Q (for scalar inlets) */
+    t_sample x_coef1;       /* filter coefficient 1 (for scalar inlets) */
+    t_sample x_coef2;       /* filter coefficient 2 (for scalar inlets) */
+    t_sample x_gain;        /* filter gain (for scalar inlets) */
+    t_float x_f;            /* value of first inlet if unconnected */
 } t_sigbp;
 
 t_class *sigbp_class;
@@ -328,13 +323,11 @@ static void sigbp_docoef(t_sigbp *x, t_floatarg f, t_floatarg q);
 static void *sigbp_new(t_floatarg f, t_floatarg q)
 {
     t_sigbp *x = (t_sigbp *)pd_new(sigbp_class);
-    inlet_new(&x->x_obj, &x->x_obj.ob_pd, gensym("float"), gensym("ft1"));
-    inlet_new(&x->x_obj, &x->x_obj.ob_pd, gensym("float"), gensym("ft2"));
+    signalinlet_new(&x->x_obj, f);
+    signalinlet_new(&x->x_obj, q);
     outlet_new(&x->x_obj, &s_signal);
-    x->x_sr = DEFAULTSRATE;
-    x->x_cspace.c_x1 = 0;
-    x->x_cspace.c_x2 = 0;
-    sigbp_docoef(x, f, q);
+    x->x_conversion = x->x_last = x->x_prev = x->x_freq = x->x_q = 0;
+    x->x_coef1 = x->x_coef2 = x->x_gain = 0;
     x->x_f = 0;
     return (x);
 }
@@ -351,50 +344,43 @@ static t_float sigbp_qcos(t_float f)
 
 static void sigbp_docoef(t_sigbp *x, t_floatarg f, t_floatarg q)
 {
-    t_float r, oneminusr, omega;
-    if (f < 0.001) f = 10;
-    if (q < 0) q = 0;
+    t_float r, oneminusr, omega, ff = f, qq = q;
     x->x_freq = f;
     x->x_q = q;
-    omega = f * (2.0f * 3.14159f) / x->x_sr;
-    if (q < 0.001) oneminusr = 1.0f;
-    else oneminusr = omega/q;
+    if (ff < 0.001) ff = 10;
+    if (qq < 0) qq = 0;
+    omega = ff * x->x_conversion;
+    if (qq < 0.001) oneminusr = 1.0f;
+    else oneminusr = omega/qq;
     if (oneminusr > 1.0f) oneminusr = 1.0f;
     r = 1.0f - oneminusr;
-    x->x_cspace.c_coef1 = 2.0f * sigbp_qcos(omega) * r;
-    x->x_cspace.c_coef2 = - r * r;
-    x->x_cspace.c_gain = 2 * oneminusr * (oneminusr + r * omega);
+    x->x_coef1 = 2.0f * sigbp_qcos(omega) * r;
+    x->x_coef2 = - r * r;
+    x->x_gain = 2 * oneminusr * (oneminusr + r * omega);
     /* post("r %f, omega %f, coef1 %f, coef2 %f",
-        r, omega, x->x_cspace.c_coef1, x->x_cspace.c_coef2); */
-}
-
-static void sigbp_ft1(t_sigbp *x, t_floatarg f)
-{
-    sigbp_docoef(x, f, x->x_q);
-}
-
-static void sigbp_ft2(t_sigbp *x, t_floatarg q)
-{
-    sigbp_docoef(x, x->x_freq, q);
+        r, omega, x->x_coef1, x->x_coef2); */
 }
 
 static void sigbp_clear(t_sigbp *x, t_floatarg q)
 {
-    x->x_cspace.c_x1 = x->x_cspace.c_x2 = 0;
+    x->x_last = x->x_prev = 0;
 }
 
-static t_int *sigbp_perform(t_int *w)
+static t_int *sigbp_perf_scalar(t_int *w)
 {
-    t_sample *in = (t_sample *)(w[1]);
-    t_sample *out = (t_sample *)(w[2]);
-    t_bpctl *c = (t_bpctl *)(w[3]);
-    int n = (int)w[4];
-    int i;
-    t_sample last = c->c_x1;
-    t_sample prev = c->c_x2;
-    t_sample coef1 = c->c_coef1;
-    t_sample coef2 = c->c_coef2;
-    t_sample gain = c->c_gain;
+    t_sigbp *x = (t_sigbp *)(w[1]);
+    t_sample *in = (t_sample *)(w[2]);
+    t_sample newf = *(t_sample *)(w[3]);
+    t_sample newq = *(t_sample *)(w[4]);
+    t_sample *out = (t_sample *)(w[5]);
+    int i, n = (int)w[6];
+    t_sample last = x->x_last, prev = x->x_prev;
+    t_sample coef1, coef2, gain;
+    if (newf != x->x_freq || newq != x->x_q)
+        sigbp_docoef(x, newf, newq);
+    coef1 = x->x_coef1;
+    coef2 = x->x_coef2;
+    gain = x->x_gain;
     for (i = 0; i < n; i++)
     {
         t_sample output =  *in++ + coef1 * last + coef2 * prev;
@@ -406,31 +392,66 @@ static t_int *sigbp_perform(t_int *w)
         last = 0;
     if (PD_BIGORSMALL(prev))
         prev = 0;
-    c->c_x1 = last;
-    c->c_x2 = prev;
-    return (w+5);
+    x->x_last = last;
+    x->x_prev = prev;
+    return (w+7);
+}
+
+static t_int *sigbp_perf_vector(t_int *w)
+{
+    t_sigbp *x = (t_sigbp *)(w[1]);
+    t_sample *in1 = (t_sample *)(w[2]);
+    t_sample *in2 = (t_sample *)(w[3]);
+    t_sample *in3 = (t_sample *)(w[4]);
+    t_sample *out = (t_sample *)(w[5]);
+    int i, n = (int)w[6];
+    t_sample last = x->x_last, prev = x->x_prev;
+    for (i = 0; i < n; i++)
+    {
+        t_float f = *in2++, q = *in3++;
+        t_float r, oneminusr, omega, ff = f, qq = q;
+        t_sample coef1, coef2, gain, output;
+        if (ff < 0.001) ff = 10;
+        if (qq < 0) qq = 0;
+        omega = ff * x->x_conversion;
+        if (qq < 0.001) oneminusr = 1.0f;
+        else oneminusr = omega/qq;
+        if (oneminusr > 1.0f) oneminusr = 1.0f;
+        r = 1.0f - oneminusr;
+        coef1 = 2.0f * sigbp_qcos(omega) * r;
+        coef2 = - r * r;
+        gain = 2 * oneminusr * (oneminusr + r * omega);
+        output = *in1++ + coef1 * last + coef2 * prev;
+        *out++ = gain * output;
+        prev = last;
+        last = output;
+    }
+    if (PD_BIGORSMALL(last))
+        last = 0;
+    if (PD_BIGORSMALL(prev))
+        prev = 0;
+    x->x_last = last;
+    x->x_prev = prev;
+    return (w+7);
 }
 
 static void sigbp_dsp(t_sigbp *x, t_signal **sp)
 {
-    x->x_sr = sp[0]->s_sr;
-    sigbp_docoef(x, x->x_freq, x->x_q);
-    dsp_add(sigbp_perform, 4,
-        sp[0]->s_vec, sp[1]->s_vec,
-            &x->x_cspace, (t_int)sp[0]->s_n);
+    x->x_conversion = (2.0f * 3.14159f) / sp[0]->s_sr;
+    x->x_freq = x->x_q = 0;   /* this will be updated at perf time */
+    dsp_add((sp[1]->s_n > 1 || sp[2]->s_n > 1 ?
+        sigbp_perf_vector : sigbp_perf_scalar), 6,
+        x, sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec, sp[3]->s_vec,
+            (t_int)sp[0]->s_n);
 }
 
 void sigbp_setup(void)
 {
     sigbp_class = class_new(gensym("bp~"), (t_newmethod)sigbp_new, 0,
-        sizeof(t_sigbp), 0, A_DEFFLOAT, A_DEFFLOAT, 0);
+        sizeof(t_sigbp), CLASS_NOPROMOTESIG, A_DEFFLOAT, A_DEFFLOAT, 0);
     CLASS_MAINSIGNALIN(sigbp_class, t_sigbp, x_f);
     class_addmethod(sigbp_class, (t_method)sigbp_dsp,
         gensym("dsp"), A_CANT, 0);
-    class_addmethod(sigbp_class, (t_method)sigbp_ft1,
-        gensym("ft1"), A_FLOAT, 0);
-    class_addmethod(sigbp_class, (t_method)sigbp_ft2,
-        gensym("ft2"), A_FLOAT, 0);
     class_addmethod(sigbp_class, (t_method)sigbp_clear, gensym("clear"), 0);
 }
 
