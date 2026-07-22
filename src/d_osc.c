@@ -53,10 +53,12 @@ struct _vcfctl;
 static t_int *cos_perform_old(t_int *w);
 static t_int *osc_perform_old(t_int *w);
 static t_int *sigvcf_perform_old(t_int *w);
+static t_int *sigvcf_perf_vector_old(t_int *w);
 #endif
 static t_int *cos_perform(t_int *w);
 static t_int *osc_perform(t_int *w);
 static t_int *sigvcf_perform(t_int *w);
+static t_int *sigvcf_perf_vector(t_int *w);
 #define COSTABLENAME cos_newtable   /* keep cos_table back-compatibile */
 
 
@@ -292,7 +294,6 @@ typedef struct _vcfctl
 {
     t_float c_re;
     t_float c_im;
-    t_float c_q;
     t_float c_isr;
 } t_vcfctl;
 
@@ -309,22 +310,14 @@ static void *sigvcf_new(t_floatarg q)
 {
     t_sigvcf *x = (t_sigvcf *)pd_new(sigvcf_class);
     inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
-    inlet_new(&x->x_obj, &x->x_obj.ob_pd, gensym("float"), gensym("ft1"));
+    signalinlet_new(&x->x_obj, q);
     outlet_new(&x->x_obj, gensym("signal"));
     outlet_new(&x->x_obj, gensym("signal"));
     x->x_cspace.c_re = 0;
     x->x_cspace.c_im = 0;
-    x->x_cspace.c_q = q;
     x->x_cspace.c_isr = 0;
     x->x_f = 0;
     return (x);
-}
-
-static void sigvcf_ft1(t_sigvcf *x, t_float f)
-{
-    if(f < 0.) f = 0.;
-    if(f > BIGFLOAT) f = BIGFLOAT;
-    x->x_cspace.c_q = f;
 }
 
 static void sigvcf_dsp(t_sigvcf *x, t_signal **sp)
@@ -332,13 +325,13 @@ static void sigvcf_dsp(t_sigvcf *x, t_signal **sp)
     x->x_cspace.c_isr = 6.28318f/sp[0]->s_sr;
 #ifdef OLDTABSIZE
     if (pd_compatibilitylevel < 55)
-        dsp_add(sigvcf_perform_old, 6,
-            sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec, sp[3]->s_vec,
+        dsp_add((sp[2]->s_n > 1 ? sigvcf_perf_vector_old : sigvcf_perform_old), 7,
+            sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec, sp[3]->s_vec, sp[4]->s_vec,
                 &x->x_cspace, (t_int)sp[0]->s_n);
     else
 #endif
-        dsp_add(sigvcf_perform, 6,
-            sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec, sp[3]->s_vec,
+        dsp_add((sp[2]->s_n > 1 ? sigvcf_perf_vector : sigvcf_perform), 7,
+            sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec, sp[3]->s_vec, sp[4]->s_vec,
                 &x->x_cspace, (t_int)sp[0]->s_n);
 }
 
@@ -352,14 +345,12 @@ static
 void sigvcf_setup(void)
 {
     sigvcf_class = class_new(gensym("vcf~"), (t_newmethod)sigvcf_new, 0,
-        sizeof(t_sigvcf), 0, A_DEFFLOAT, 0);
+        sizeof(t_sigvcf), CLASS_NOPROMOTESIG, A_DEFFLOAT, 0);
     CLASS_MAINSIGNALIN(sigvcf_class, t_sigvcf, x_f);
     class_addmethod(sigvcf_class, (t_method)sigvcf_clear,
         gensym("clear"), 0);
     class_addmethod(sigvcf_class, (t_method)sigvcf_dsp,
         gensym("dsp"), A_CANT, 0);
-    class_addmethod(sigvcf_class, (t_method)sigvcf_ft1,
-        gensym("ft1"), A_FLOAT, 0);
 }
 
 /* -------------------------- noise~ ------------------------------ */
@@ -564,6 +555,7 @@ static void tabosc4_tilde_setup(void)
 #define COSPERF cos_perform
 #define OSCPERF osc_perform
 #define SIGVCFPERF sigvcf_perform
+#define SIGVCFPERFVEC sigvcf_perf_vector
 
 #include "d_osc.h"    /* include normal perf routines */
 
@@ -578,6 +570,8 @@ static void tabosc4_tilde_setup(void)
 #define OSCPERF osc_perform_old
 #undef SIGVCFPERF
 #define SIGVCFPERF sigvcf_perform_old
+#undef SIGVCFPERFVEC
+#define SIGVCFPERFVEC sigvcf_perf_vector_old
 #include "d_osc.h"    /* include 512-point compatibility perf routines */
 #endif
 

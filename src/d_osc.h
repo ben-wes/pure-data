@@ -132,14 +132,17 @@ static t_int *SIGVCFPERF(t_int *w)
 {
     t_sample *in1 = (t_sample *)(w[1]);
     t_sample *in2 = (t_sample *)(w[2]);
-    t_sample *out1 = (t_sample *)(w[3]);
-    t_sample *out2 = (t_sample *)(w[4]);
-    t_vcfctl *c = (t_vcfctl *)(w[5]);
-    int n = (int)w[6];
+    t_sample *in3 = (t_sample *)(w[3]);
+    t_sample *out1 = (t_sample *)(w[4]);
+    t_sample *out2 = (t_sample *)(w[5]);
+    t_vcfctl *c = (t_vcfctl *)(w[6]);
+    int n = (int)w[7];
     int i;
     t_float re = c->c_re, re2;
     t_float im = c->c_im;
-    t_float q = c->c_q;
+    t_float q = *in3;
+    if (q < 0) q = 0;
+    if (q > BIGFLOAT) q = BIGFLOAT;
     t_float isr = c->c_isr;
     t_float qinv = (q > 0? 1.0f/q : 0);
     t_float ampcorrect = 2. - 2. / (q + 2.);
@@ -188,6 +191,72 @@ static t_int *SIGVCFPERF(t_int *w)
         im = 0;
     c->c_re = re;
     c->c_im = im;
-    return (w+7);
+    return (w+8);
+}
+
+static t_int *SIGVCFPERFVEC(t_int *w)
+{
+    t_sample *in1 = (t_sample *)(w[1]);
+    t_sample *in2 = (t_sample *)(w[2]);
+    t_sample *in3 = (t_sample *)(w[3]);
+    t_sample *out1 = (t_sample *)(w[4]);
+    t_sample *out2 = (t_sample *)(w[5]);
+    t_vcfctl *c = (t_vcfctl *)(w[6]);
+    int n = (int)w[7];
+    int i;
+    t_float re = c->c_re, re2;
+    t_float im = c->c_im;
+    t_float isr = c->c_isr;
+    t_float coefr, coefi;
+    float *tab = COSTABLENAME, *addr, f1, f2, frac;
+    double dphase;
+    int normhipart, tabindex;
+    union tabfudge tf;
+
+    tf.tf_d = UNITBIT32;
+    normhipart = tf.tf_i[HIOFFSET];
+
+    for (i = 0; i < n; i++)
+    {
+        float cf, cfindx, r, oneminusr, q, qinv, ampcorrect;
+        q = *in3++;
+        if (q < 0) q = 0;
+        if (q > BIGFLOAT) q = BIGFLOAT;
+        qinv = (q > 0? 1.0f/q : 0);
+        ampcorrect = 2. - 2. / (q + 2.);
+        cf = *in2++ * isr;
+        if (cf < 0) cf = 0;
+        cfindx = cf * (float)(COSTABLESIZE/6.28318f);
+        r = (qinv > 0 ? 1 - cf * qinv : 0);
+        if (r < 0) r = 0;
+        oneminusr = 1.0f - r;
+        dphase = ((double)(cfindx)) + UNITBIT32;
+        tf.tf_d = dphase;
+        tabindex = tf.tf_i[HIOFFSET] & (COSTABLESIZE-1);
+        addr = tab + tabindex;
+        tf.tf_i[HIOFFSET] = normhipart;
+        frac = tf.tf_d - UNITBIT32;
+        f1 = addr[0];
+        f2 = addr[1];
+        coefr = r * (f1 + frac * (f2 - f1));
+
+        addr = tab + ((tabindex - (COSTABLESIZE/4)) & (COSTABLESIZE-1));
+        f1 = addr[0];
+        f2 = addr[1];
+        coefi = r * (f1 + frac * (f2 - f1));
+
+        f1 = *in1++;
+        re2 = re;
+        *out1++ = re = ampcorrect * oneminusr * f1
+            + coefr * re2 - coefi * im;
+        *out2++ = im = coefi * re2 + coefr * im;
+    }
+    if (PD_BIGORSMALL(re))
+        re = 0;
+    if (PD_BIGORSMALL(im))
+        im = 0;
+    c->c_re = re;
+    c->c_im = im;
+    return (w+8);
 }
 
