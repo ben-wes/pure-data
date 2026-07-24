@@ -89,21 +89,33 @@ proc pdtk_openpanel {target localdir {mode 0} {parent .pdwindow}} {
 }
 
 
-proc pdtk_savepanel {target localdir {initialfile ""} {parent .pdwindow}} {
-    set localdir [file normalize $localdir]
+proc pdtk_savepanel {target path {parent .pdwindow}} {
+    set path [file normalize $path]
     if { $::pd::private::lastsavedir == "" } {
         if { ! [file isdirectory $::filenewdir]} {
             set ::filenewdir $::env(HOME)
         }
         set ::pd::private::lastsavedir $::filenewdir
     }
-    if {! [file isdirectory $localdir]} {
-        set localdir $::pd::private::lastsavedir
+    # A directory opens there with no prefilled name;
+    # a file path is split into its directory and filename.
+    if {$path ne "" && [file isdirectory $path]} {
+        set initialdir $path
+        set initialfile ""
+    } elseif {$path ne ""} {
+        set initialdir [file dirname $path]
+        set initialfile [file tail $path]
+        if {$initialdir eq "." || ! [file isdirectory $initialdir]} {
+            set initialdir $::pd::private::lastsavedir
+        }
+    } else {
+        set initialdir $::pd::private::lastsavedir
+        set initialfile ""
     }
     if { ! [winfo exists parent] } {
         set parent .pdwindow
     }
-    set cmd [list tk_getSaveFile -initialdir $localdir]
+    set cmd [list tk_getSaveFile -initialdir $initialdir]
     if {$initialfile ne ""} { lappend cmd -initialfile $initialfile }
     if { [winfo exists parent] } { lappend cmd -parent $parent }
     set filename [eval $cmd]

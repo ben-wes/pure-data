@@ -340,18 +340,8 @@ static void *savepanel_new(void)
 static void savepanel_symbol(t_savepanel *x, t_symbol *s)
 {
     const char *path = (s && s->s_name) ? s->s_name : "";
-    pdgui_vmess("pdtk_savepanel", "sssc",
-        x->x_s->s_name, path, "", glist_getcanvas(x->x_canvas));
-}
-
-static void savepanel_list(t_savepanel *x, t_symbol *s, int argc, t_atom *argv)
-{
-    const char *dir = (argc >= 1 && argv[0].a_type == A_SYMBOL) ?
-        argv[0].a_w.w_symbol->s_name : "";
-    const char *file = (argc >= 2 && argv[1].a_type == A_SYMBOL) ?
-        argv[1].a_w.w_symbol->s_name : "";
-    pdgui_vmess("pdtk_savepanel", "sssc",
-        x->x_s->s_name, dir, file, glist_getcanvas(x->x_canvas));
+    pdgui_vmess("pdtk_savepanel", "ssc",
+        x->x_s->s_name, path, glist_getcanvas(x->x_canvas));
 }
 
 static void savepanel_bang(t_savepanel *x)
@@ -376,7 +366,6 @@ static void savepanel_setup(void)
         sizeof(t_savepanel), 0, 0);
     class_addbang(savepanel_class, savepanel_bang);
     class_addsymbol(savepanel_class, savepanel_symbol);
-    class_addlist(savepanel_class, savepanel_list);
     class_addmethod(savepanel_class, (t_method)savepanel_callback,
         gensym("callback"), A_SYMBOL, 0);
 }
