@@ -323,6 +323,8 @@ typedef struct _savepanel
     t_object x_obj;
     t_canvas *x_canvas;
     t_symbol *x_s;
+    t_atom *x_filter;
+    int x_filterargc;
 } t_savepanel;
 
 static void *savepanel_new(void)
@@ -332,6 +334,8 @@ static void *savepanel_new(void)
     sprintf(buf, "d%lx", (t_int)x);
     x->x_s = gensym(buf);
     x->x_canvas = canvas_getcurrent();
+    x->x_filter = 0;
+    x->x_filterargc = 0;
     pd_bind(&x->x_obj.ob_pd, x->x_s);
     outlet_new(&x->x_obj, &s_symbol);
     return (x);
@@ -340,13 +344,30 @@ static void *savepanel_new(void)
 static void savepanel_symbol(t_savepanel *x, t_symbol *s)
 {
     const char *path = (s && s->s_name) ? s->s_name : "";
-    pdgui_vmess("pdtk_savepanel", "ssc",
-        x->x_s->s_name, path, glist_getcanvas(x->x_canvas));
+    pdgui_vmess("pdtk_savepanel", "ssAc",
+        x->x_s->s_name, path, x->x_filterargc, x->x_filter,
+        glist_getcanvas(x->x_canvas));
 }
 
 static void savepanel_bang(t_savepanel *x)
 {
     savepanel_symbol(x, &s_);
+}
+
+static void savepanel_filter(t_savepanel *x, t_symbol *s, int argc, t_atom *argv)
+{
+    if (x->x_filter)
+        freebytes(x->x_filter, x->x_filterargc * sizeof(t_atom));
+    x->x_filterargc = argc;
+    if (argc > 0)
+    {
+        x->x_filter = (t_atom *)getbytes(argc * sizeof(t_atom));
+        if (x->x_filter)
+            memcpy(x->x_filter, argv, argc * sizeof(t_atom));
+        else
+            x->x_filterargc = 0;
+    }
+    else x->x_filter = 0;
 }
 
 static void savepanel_callback(t_savepanel *x, t_symbol *s)
@@ -356,6 +377,8 @@ static void savepanel_callback(t_savepanel *x, t_symbol *s)
 
 static void savepanel_free(t_savepanel *x)
 {
+    if (x->x_filter)
+        freebytes(x->x_filter, x->x_filterargc * sizeof(t_atom));
     pd_unbind(&x->x_obj.ob_pd, x->x_s);
 }
 
@@ -366,6 +389,8 @@ static void savepanel_setup(void)
         sizeof(t_savepanel), 0, 0);
     class_addbang(savepanel_class, savepanel_bang);
     class_addsymbol(savepanel_class, savepanel_symbol);
+    class_addmethod(savepanel_class, (t_method)savepanel_filter,
+        gensym("filter"), A_GIMME, 0);
     class_addmethod(savepanel_class, (t_method)savepanel_callback,
         gensym("callback"), A_SYMBOL, 0);
 }

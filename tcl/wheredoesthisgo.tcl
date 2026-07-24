@@ -89,7 +89,7 @@ proc pdtk_openpanel {target localdir {mode 0} {parent .pdwindow}} {
 }
 
 
-proc pdtk_savepanel {target path {parent .pdwindow}} {
+proc pdtk_savepanel {target path {filetypes {}} {parent .pdwindow}} {
     set path [file normalize $path]
     if { $::pd::private::lastsavedir == "" } {
         if { ! [file isdirectory $::filenewdir]} {
@@ -117,6 +117,19 @@ proc pdtk_savepanel {target path {parent .pdwindow}} {
     }
     set cmd [list tk_getSaveFile -initialdir $initialdir]
     if {$initialfile ne ""} { lappend cmd -initialfile $initialfile }
+    # Build a Tk -filetypes list from the given extensions (each with or
+    # without a leading dot), auto-labeled, plus an "All files" entry.
+    if {[llength $filetypes] > 0} {
+        set ftlist {}
+        foreach ext $filetypes {
+            if {$ext eq "*" } { continue }
+            if { ! [string match .* $ext]} { set ext .$ext }
+            set label "[string toupper [string trimleft $ext .]] files"
+            lappend ftlist [list $label [list $ext]]
+        }
+        lappend ftlist [list "All files" *]
+        lappend cmd -filetypes $ftlist
+    }
     if { [winfo exists parent] } { lappend cmd -parent $parent }
     set filename [eval $cmd]
     if {$filename ne ""} {
