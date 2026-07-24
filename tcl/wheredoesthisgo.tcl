@@ -89,7 +89,7 @@ proc pdtk_openpanel {target localdir {mode 0} {parent .pdwindow}} {
 }
 
 
-proc pdtk_savepanel {target localdir {parent .pdwindow}} {
+proc pdtk_savepanel {target localdir {initialfile ""} {parent .pdwindow}} {
     set localdir [file normalize $localdir]
     if { $::pd::private::lastsavedir == "" } {
         if { ! [file isdirectory $::filenewdir]} {
@@ -103,11 +103,10 @@ proc pdtk_savepanel {target localdir {parent .pdwindow}} {
     if { ! [winfo exists parent] } {
         set parent .pdwindow
     }
-    if { [winfo exists parent] } {
-        set filename [tk_getSaveFile -initialdir $localdir -parent $parent]
-    } else {
-        set filename [tk_getSaveFile -initialdir $localdir]
-    }
+    set cmd [list tk_getSaveFile -initialdir $localdir]
+    if {$initialfile ne ""} { lappend cmd -initialfile $initialfile }
+    if { [winfo exists parent] } { lappend cmd -parent $parent }
+    set filename [eval $cmd]
     if {$filename ne ""} {
         set ::pd::private::lastsavedir [file dirname $filename]
         pdsend "$target callback [enquote_path $filename]"
