@@ -90,13 +90,18 @@ proc pdtk_openpanel {target localdir {mode 0} {parent .pdwindow}} {
 
 
 proc pdtk_savepanel {target path {filetypes {}} {parent .pdwindow}} {
-    set path [file normalize $path]
     if { $::pd::private::lastsavedir == "" } {
         if { ! [file isdirectory $::filenewdir]} {
             set ::filenewdir $::env(HOME)
         }
         set ::pd::private::lastsavedir $::filenewdir
     }
+    # resolve relative paths against the last-used save directory, so a bare
+    # filename opens there prefilled. absolute paths are used as-is.
+    if {$path ne "" && [file pathtype $path] ne "absolute"} {
+        set path [file join $::pd::private::lastsavedir $path]
+    }
+    set path [file normalize $path]
     # A directory opens there with no prefilled name;
     # a file path is split into its directory and filename.
     if {$path ne "" && [file isdirectory $path]} {
@@ -105,7 +110,7 @@ proc pdtk_savepanel {target path {filetypes {}} {parent .pdwindow}} {
     } elseif {$path ne ""} {
         set initialdir [file dirname $path]
         set initialfile [file tail $path]
-        if {$initialdir eq "." || ! [file isdirectory $initialdir]} {
+        if {![file isdirectory $initialdir]} {
             set initialdir $::pd::private::lastsavedir
         }
     } else {
