@@ -799,11 +799,11 @@ static void pow_tilde_setup(void)
 }
 
 /* ----------------------------- ==~ ----------------------------- */
-static t_class *ee_tilde_class, *scalar_ee_tilde_class;
+static t_class *ee_tilde_class;
 
 static void *ee_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, ee_tilde_class, scalar_ee_tilde_class);
+    return any_binop_new(s, argc, argv, ee_tilde_class);
 }
 
 t_int *ee_tilde_perform(t_int *w)
@@ -870,23 +870,17 @@ static void ee_tilde_dsp(t_binop *x, t_signal **sp)
         scalar_ee_tilde_perform, scalar_ee_tilde_perf8);
 }
 
-static void scalar_ee_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g, scalar_ee_tilde_perform, scalar_ee_tilde_perf8);
-}
-
 static void ee_tilde_setup(void)
 {
     ee_tilde_class = any_binop_class(gensym("==~"), ee_tilde_new, ee_tilde_dsp);
-    scalar_ee_tilde_class = any_scalarbinop_class(gensym("==~"), scalar_ee_tilde_dsp);
 }
 
 /* ----------------------------- !=~ ----------------------------- */
-static t_class *ne_tilde_class, *scalar_ne_tilde_class;
+static t_class *ne_tilde_class;
 
 static void *ne_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, ne_tilde_class, scalar_ne_tilde_class);
+    return any_binop_new(s, argc, argv, ne_tilde_class);
 }
 
 t_int *ne_tilde_perform(t_int *w)
@@ -953,41 +947,35 @@ static void ne_tilde_dsp(t_binop *x, t_signal **sp)
         scalar_ne_tilde_perform, scalar_ne_tilde_perf8);
 }
 
-static void scalar_ne_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g, scalar_ne_tilde_perform, scalar_ne_tilde_perf8);
-}
-
 static void ne_tilde_setup(void)
 {
     ne_tilde_class = any_binop_class(gensym("!=~"), ne_tilde_new, ne_tilde_dsp);
-    scalar_ne_tilde_class = any_scalarbinop_class(gensym("!=~"), scalar_ne_tilde_dsp);
 }
 
 /* ------------------------ >~ >=~ <~ <=~ ------------------------ */
-static t_class *gt_tilde_class, *scalar_gt_tilde_class;
-static t_class *ge_tilde_class, *scalar_ge_tilde_class;
-static t_class *lt_tilde_class, *scalar_lt_tilde_class;
-static t_class *le_tilde_class, *scalar_le_tilde_class;
+static t_class *gt_tilde_class;
+static t_class *ge_tilde_class;
+static t_class *lt_tilde_class;
+static t_class *le_tilde_class;
 
 static void *gt_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, gt_tilde_class, scalar_gt_tilde_class);
+    return any_binop_new(s, argc, argv, gt_tilde_class);
 }
 
 static void *ge_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, ge_tilde_class, scalar_ge_tilde_class);
+    return any_binop_new(s, argc, argv, ge_tilde_class);
 }
 
 static void *lt_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, lt_tilde_class, scalar_lt_tilde_class);
+    return any_binop_new(s, argc, argv, lt_tilde_class);
 }
 
 static void *le_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, le_tilde_class, scalar_le_tilde_class);
+    return any_binop_new(s, argc, argv, le_tilde_class);
 }
 
 static t_int *gt_tilde_perform(t_int *w)
@@ -1166,23 +1154,12 @@ static void gt_tilde_dsp(t_binop *x, t_signal **sp)
             scalar_lt_tilde_perform, scalar_lt_tilde_perf8);
 }
 
-static void scalar_gt_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g, scalar_gt_tilde_perform, scalar_gt_tilde_perf8);
-}
-
 static void ge_tilde_dsp(t_binop *x, t_signal **sp)
 {
     any_binop_dsp(sp, ge_tilde_perform, ge_tilde_perf8,
         scalar_ge_tilde_perform, scalar_ge_tilde_perf8,
                 /* a >= b is the same as b <= a */
             scalar_le_tilde_perform, scalar_le_tilde_perf8);
-}
-
-static void scalar_ge_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g,
-        scalar_ge_tilde_perform, scalar_ge_tilde_perf8);
 }
 
 static void lt_tilde_dsp(t_binop *x, t_signal **sp)
@@ -1195,12 +1172,6 @@ static void lt_tilde_dsp(t_binop *x, t_signal **sp)
     sp[2] = tmp[2]; /* assign result of signal_setmultiout()! */
 }
 
-static void scalar_lt_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g,
-        scalar_lt_tilde_perform, scalar_lt_tilde_perf8);
-}
-
 static void le_tilde_dsp(t_binop *x, t_signal **sp)
 {
         /* a <= b is the same as b >= a, so we just swap the inputs */
@@ -1211,42 +1182,32 @@ static void le_tilde_dsp(t_binop *x, t_signal **sp)
     sp[2] = tmp[2]; /* assign result of signal_setmultiout()! */
 }
 
-static void scalar_le_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g,
-        scalar_le_tilde_perform, scalar_le_tilde_perf8);
-}
-
 static void gt_tilde_setup(void)
 {
     gt_tilde_class = any_binop_class(gensym(">~"), gt_tilde_new, gt_tilde_dsp);
-    scalar_gt_tilde_class = any_scalarbinop_class(gensym(">~"), scalar_gt_tilde_dsp);
 }
 
 static void ge_tilde_setup(void)
 {
     ge_tilde_class = any_binop_class(gensym(">=~"), ge_tilde_new, ge_tilde_dsp);
-    scalar_ge_tilde_class = any_scalarbinop_class(gensym(">=~"), scalar_ge_tilde_dsp);
 }
 
 static void lt_tilde_setup(void)
 {
     lt_tilde_class = any_binop_class(gensym("<~"), lt_tilde_new, lt_tilde_dsp);
-    scalar_lt_tilde_class = any_scalarbinop_class(gensym("<~"), scalar_lt_tilde_dsp);
 }
 
 static void le_tilde_setup(void)
 {
     le_tilde_class = any_binop_class(gensym("<=~"), le_tilde_new, le_tilde_dsp);
-    scalar_le_tilde_class = any_scalarbinop_class(gensym("<=~"), scalar_le_tilde_dsp);
 }
 
 /* ----------------------------- &&~ ----------------------------- */
-static t_class *and_tilde_class, *scalarand_tilde_class;
+static t_class *and_tilde_class;
 
 static void *and_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, and_tilde_class, scalarand_tilde_class);
+    return any_binop_new(s, argc, argv, and_tilde_class);
 }
 
 t_int *and_tilde_perform(t_int *w)
@@ -1313,23 +1274,17 @@ static void and_tilde_dsp(t_binop *x, t_signal **sp)
         scalarand_tilde_perform, scalarand_tilde_perf8);
 }
 
-static void scalarand_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g, scalarand_tilde_perform, scalarand_tilde_perf8);
-}
-
 static void and_tilde_setup(void)
 {
     and_tilde_class = any_binop_class(gensym("&&~"), and_tilde_new, and_tilde_dsp);
-    scalarand_tilde_class = any_scalarbinop_class(gensym("&&~"), scalarand_tilde_dsp);
 }
 
 /* ----------------------------- ||~ ----------------------------- */
-static t_class *or_tilde_class, *scalaror_tilde_class;
+static t_class *or_tilde_class;
 
 static void *or_tilde_new(t_symbol *s, int argc, t_atom *argv)
 {
-    return any_binop_new(s, argc, argv, or_tilde_class, scalaror_tilde_class);
+    return any_binop_new(s, argc, argv, or_tilde_class);
 }
 
 t_int *or_tilde_perform(t_int *w)
@@ -1396,15 +1351,9 @@ static void or_tilde_dsp(t_binop *x, t_signal **sp)
         scalaror_tilde_perform, scalaror_tilde_perf8);
 }
 
-static void scalaror_tilde_dsp(t_scalarbinop *x, t_signal **sp)
-{
-    any_binop_scalar_dsp(sp, &x->x_g, scalaror_tilde_perform, scalaror_tilde_perf8);
-}
-
 static void or_tilde_setup(void)
 {
     or_tilde_class = any_binop_class(gensym("||~"), or_tilde_new, or_tilde_dsp);
-    scalaror_tilde_class = any_scalarbinop_class(gensym("||~"), scalaror_tilde_dsp);
 }
 
 /* ----------------------- global setup routine ---------------- */
