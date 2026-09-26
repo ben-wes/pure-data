@@ -73,7 +73,7 @@
 #X text 465 393 "1" if connection is open \, "0" otherwise.;
 #X floatatom 440 392 2 0 0 0 - - - 0;
 #X obj 440 355 tgl 19 0 empty empty empty 0 -10 0 12 #dfdfdf #000000 #000000 0 1;
-#X text 424 80 A connection request should specify the name or IP address of the other host and the port number. There should be a [netreceive] object on the remote host with a matching port number. More than one [netsed] can connect to a single [netreceive] object. More than one [netreceive] object cannot listen to the same port at the same time., f 85;
+#X text 424 80 A connection request should specify the name or IP address of the other host and the port number. There should be a [netreceive] object on the remote host with a matching port number. More than one [netsed] can connect to a single [netreceive] object. UDP [netreceive] objects may share a port and each receives every datagram. TCP still allows only one listener per port., f 85;
 #X msg 690 464 disconnect;
 #X msg 670 432 connect localhost 3001;
 #X obj 670 546 netsend -u;

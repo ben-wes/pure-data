@@ -5,6 +5,7 @@
 /* network */
 
 #include "m_pd.h"
+#include "m_imp.h"
 #include "s_stuff.h"
 #include "s_net.h"
 
@@ -14,6 +15,9 @@
 #ifndef _WIN32
 #include <fcntl.h>
 #include <errno.h>
+#endif
+#if PDTHREADS
+#include <pthread.h>
 #endif
 
 /* print addrinfo lists for debugging */
@@ -64,6 +68,7 @@ typedef struct _netreceive
     int *x_connections;
     int x_old;
     t_socketreceiver **x_receivers;
+    struct _udpsub *x_udpsub; /* shared UDP subscription, or NULL */
 } t_netreceive;
 
 static void netsend_disconnect(t_netsend *x);
@@ -613,9 +618,576 @@ static void netreceive_connectpoll(t_netreceive *x)
     }
 }
 
+/* ----------------------- shared UDP port ----------------------- */
+/*
+ * One UDP socket per local address/port inside this process. Every
+ * [netreceive] on that port, including ones in other libpd instances,
+ * gets a copy of each datagram. The socket is polled by a single
+ * instance; other instances receive the packet via pd_queue_mess().
+ * TCP listeners stay exclusive. Separate OS processes still cannot
+ * share a unicast port.
+ */
+
+struct _udpsub
+{
+    t_netreceive *sub_obj;          /* NULL once the object is gone */
+    t_pdinstance *sub_instance;
+    struct _udpport *sub_port;
+    int sub_multicast;
+    int sub_refs;                   /* object + queued/in-flight deliveries */
+    struct sockaddr_storage sub_group;
+    struct _udpsub *sub_next;
+};
+
+typedef struct _udpport
+{
+    int up_port;
+    int up_family;
+    char up_bindhost[INET6_ADDRSTRLEN]; /* "::" / "0.0.0.0" or a unicast addr */
+    int up_fd;
+    int up_polling;                 /* fd is in up_owner's poll set */
+    int up_inpoll;                  /* owner is inside the poll callback */
+    int up_adopt_pending;           /* a handoff message is queued */
+    t_pdinstance *up_owner;         /* instance whose poll set owns the fd */
+    struct _udpsub *up_subs;
+    struct _udpport *up_next;
+} t_udpport;
+
+typedef struct _udpmsg
+{
+    struct _udpsub *sub;
+    int size;
+    struct sockaddr_storage from;
+    char *buf;
+} t_udpmsg;
+
+static t_udpport *udpshared_ports = 0;
+
+#if PDTHREADS
+static pthread_mutex_t udpshared_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define udpshared_lock() pthread_mutex_lock(&udpshared_mutex)
+#define udpshared_unlock() pthread_mutex_unlock(&udpshared_mutex)
+#else
+#define udpshared_lock()
+#define udpshared_unlock()
+#endif
+
+static void udpshared_bindkey(int family, int wildcard,
+    const struct sockaddr *sa, char *buf, int buflen)
+{
+    if (buflen < 1)
+        return;
+    if (wildcard)
+        strcpy(buf, family == AF_INET6 ? "::" : "0.0.0.0");
+    else if (!sa || !sockaddr_get_addrstr(sa, buf, buflen))
+        buf[0] = 0;
+}
+
+static int udpshared_same_addr(const struct sockaddr *a, const struct sockaddr *b)
+{
+    if (a->sa_family != b->sa_family)
+        return 0;
+    if (a->sa_family == AF_INET)
+        return (((struct sockaddr_in *)a)->sin_addr.s_addr ==
+            ((struct sockaddr_in *)b)->sin_addr.s_addr);
+    if (a->sa_family == AF_INET6)
+        return (!memcmp(&((struct sockaddr_in6 *)a)->sin6_addr,
+            &((struct sockaddr_in6 *)b)->sin6_addr, sizeof(struct in6_addr)));
+    return 0;
+}
+
+static t_udpport *udpshared_find(int port, int family, const char *bindhost)
+{
+    t_udpport *p;
+    for (p = udpshared_ports; p; p = p->up_next)
+        if (p->up_fd >= 0 && p->up_port == port && p->up_family == family &&
+            !strcmp(p->up_bindhost, bindhost))
+            return p;
+    return 0;
+}
+
+static int udpshared_has_instance(t_udpport *port, t_pdinstance *instance)
+{
+    struct _udpsub *s;
+    for (s = port->up_subs; s; s = s->sub_next)
+        if (s->sub_instance == instance)
+            return 1;
+    return 0;
+}
+
+    /* lock held. returns 1 and fills errbuf if IP_ADD_MEMBERSHIP failed. */
+static int udpshared_join_locked(t_udpport *port, const struct sockaddr *group,
+    int *errp, char *errbuf, int errsize)
+{
+    struct _udpsub *s;
+    for (s = port->up_subs; s; s = s->sub_next)
+        if (s->sub_multicast &&
+            udpshared_same_addr((struct sockaddr *)&s->sub_group, group))
+            return 0;
+    if (socket_join_multicast_group(port->up_fd, group) < 0)
+    {
+        int err = socket_errno();
+        if (errp)
+            *errp = err;
+        if (errbuf)
+            socket_strerror(err, errbuf, errsize);
+        return 1;
+    }
+    return 0;
+}
+
+    /* lock held. drop membership when the last subscriber of this group leaves. */
+static void udpshared_leave_locked(t_udpport *port, struct _udpsub *leaving)
+{
+    struct _udpsub *s;
+    if (!leaving->sub_multicast || port->up_fd < 0)
+        return;
+    for (s = port->up_subs; s; s = s->sub_next)
+        if (s != leaving && s->sub_multicast &&
+            udpshared_same_addr((struct sockaddr *)&s->sub_group,
+                (struct sockaddr *)&leaving->sub_group))
+            return;
+    socket_leave_multicast_group(port->up_fd,
+        (struct sockaddr *)&leaving->sub_group);
+}
+
+static void udpshared_addsub(t_udpport *port, t_netreceive *x,
+    int multicast, const struct sockaddr *group)
+{
+    struct _udpsub *s = (struct _udpsub *)t_getbytes(sizeof(*s));
+    s->sub_obj = x;
+    s->sub_instance = pd_this;
+    s->sub_port = port;
+    s->sub_multicast = multicast;
+    s->sub_refs = 1;
+    if (multicast && group)
+        memcpy(&s->sub_group, group, sizeof(s->sub_group));
+    s->sub_next = 0;
+    if (!port->up_subs)
+        port->up_subs = s;
+    else
+    {
+        struct _udpsub *tail;
+        for (tail = port->up_subs; tail->sub_next; tail = tail->sub_next)
+            ;
+        tail->sub_next = s;
+    }
+    x->x_udpsub = s;
+}
+
+static void udpshared_deliver_one(t_netreceive *x, const char *data, int size,
+    const struct sockaddr *from)
+{
+    if (x->x_ns.x_bin)
+    {
+        int i;
+        t_atom *ap;
+        if (size <= 0)
+            return;
+        if (from && x->x_ns.x_fromout)
+            outlet_sockaddr(x->x_ns.x_fromout, from);
+        if (!x->x_ns.x_msgout)
+            return;
+        ap = (t_atom *)t_getbytes(size * sizeof(*ap));
+        for (i = 0; i < size; i++)
+            SETFLOAT(ap + i, (unsigned char)data[i]);
+        outlet_setstacklim();
+        outlet_list(x->x_ns.x_msgout, 0, size, ap);
+        t_freebytes(ap, size * sizeof(*ap));
+        return;
+    }
+        /* FUDI: same filter as socketreceiver_getudp() */
+    if (size <= 0 || data[size - 1] != '\n')
+        return;
+    {
+        char *buf = (char *)t_getbytes(size + 1);
+        char *semi;
+        t_binbuf *b;
+        memcpy(buf, data, size);
+        buf[size] = 0;
+        semi = strchr(buf, ';');
+        if (semi)
+            *semi = 0;
+        if (from && x->x_ns.x_fromout)
+            outlet_sockaddr(x->x_ns.x_fromout, from);
+        if (!x->x_ns.x_msgout)
+        {
+            t_freebytes(buf, size + 1);
+            return;
+        }
+        b = binbuf_new();
+        binbuf_text(b, buf, strlen(buf));
+        t_freebytes(buf, size + 1);
+        outlet_setstacklim();
+        netsend_read(&x->x_ns, b);
+        binbuf_free(b);
+    }
+}
+
+static void udpshared_queued_deliver(t_pd *obj, void *data)
+{
+    t_udpmsg *m = (t_udpmsg *)data;
+    struct _udpsub *sub = m->sub;
+    t_netreceive *x = 0;
+    (void)obj;
+    udpshared_lock();
+    x = sub->sub_obj;
+    udpshared_unlock();
+    if (x)
+        udpshared_deliver_one(x, m->buf, m->size, (struct sockaddr *)&m->from);
+    t_freebytes(m->buf, m->size);
+    udpshared_lock();
+    sub->sub_refs--;
+    if (sub->sub_refs <= 0)
+        t_freebytes(sub, sizeof(*sub));
+    udpshared_unlock();
+    t_freebytes(m, sizeof(*m));
+}
+
+    /* lock held */
+static void udpshared_queue_deliver(struct _udpsub *s, const char *data,
+    int size, const struct sockaddr *from)
+{
+    t_udpmsg *m = (t_udpmsg *)t_getbytes(sizeof(*m));
+    m->sub = s;
+    m->size = size;
+    m->buf = (char *)t_getbytes(size ? size : 1);
+    if (size)
+        memcpy(m->buf, data, size);
+    if (from)
+        memcpy(&m->from, from, sizeof(m->from));
+    s->sub_refs++;
+    pd_queue_mess(s->sub_instance, 0, m, udpshared_queued_deliver);
+}
+
+static void udpshared_poll(t_udpport *port, int fd);
+static void udpshared_unlink_and_close(t_udpport *port);
+static void udpshared_handoff_or_close(t_udpport *port);
+static void udpshared_adopt(t_pd *obj, void *data);
+
+static void udpshared_queue_adopt(t_udpport *port, t_pdinstance *inst)
+{
+    port->up_adopt_pending = 1;
+        /* non-NULL obj so instance teardown (which calls fn with NULL)
+           can be told apart from a normal handoff */
+    pd_queue_mess(inst, (t_pd *)port, port, udpshared_adopt);
+}
+
+    /* lock held. port is no longer in the list; fd is closed. */
+static void udpshared_unlink_and_close(t_udpport *port)
+{
+    t_udpport **pp;
+    for (pp = &udpshared_ports; *pp; pp = &(*pp)->up_next)
+        if (*pp == port)
+        {
+            *pp = port->up_next;
+            break;
+        }
+    if (port->up_polling && port->up_owner == pd_this)
+    {
+        sys_rmpollfn(port->up_fd);
+        port->up_polling = 0;
+    }
+    if (port->up_fd >= 0)
+    {
+        sys_closesocket(port->up_fd);
+        port->up_fd = -1;
+    }
+    if (port->up_inpoll || port->up_adopt_pending)
+        return;
+    t_freebytes(port, sizeof(*port));
+}
+
+    /*
+     * lock held. The polling instance has no subscribers left.
+     * Move the poll to another instance, or close the socket.
+     */
+static void udpshared_handoff_or_close(t_udpport *port)
+{
+    struct _udpsub *s;
+    if (port->up_fd < 0)
+        return;
+    if (port->up_polling && port->up_owner == pd_this)
+    {
+        sys_rmpollfn(port->up_fd);
+        port->up_polling = 0;
+    }
+    if (!port->up_subs)
+    {
+        if (port->up_polling && port->up_owner != pd_this)
+        {
+                /* poll set belongs to an instance we can't touch from here */
+            if (!port->up_adopt_pending)
+                udpshared_queue_adopt(port, port->up_owner);
+            return;
+        }
+        udpshared_unlink_and_close(port);
+        return;
+    }
+    if (!udpshared_has_instance(port, port->up_owner))
+        port->up_owner = port->up_subs->sub_instance;
+    if (port->up_adopt_pending)
+        return;
+    if (port->up_owner == pd_this)
+    {
+        sys_addpollfn(port->up_fd, (t_fdpollfn)udpshared_poll, port);
+        port->up_polling = 1;
+        return;
+    }
+    s = port->up_subs;
+    port->up_owner = s->sub_instance;
+    udpshared_queue_adopt(port, s->sub_instance);
+}
+
+static void udpshared_adopt(t_pd *obj, void *data)
+{
+    t_udpport *port = (t_udpport *)data;
+    udpshared_lock();
+    port->up_adopt_pending = 0;
+    if (!obj)
+    {
+            /* polling instance is being destroyed; its poll set is already
+               gone, so don't call sys_rmpollfn */
+        port->up_polling = 0;
+        if (port->up_fd >= 0 && port->up_subs)
+        {
+            port->up_owner = port->up_subs->sub_instance;
+            udpshared_queue_adopt(port, port->up_owner);
+        }
+        else if (port->up_fd >= 0)
+            udpshared_unlink_and_close(port);
+        else if (!port->up_inpoll)
+            t_freebytes(port, sizeof(*port));
+        udpshared_unlock();
+        return;
+    }
+    if (port->up_fd >= 0 && port->up_subs)
+    {
+        if (!udpshared_has_instance(port, pd_this))
+        {
+            if (!udpshared_has_instance(port, port->up_owner))
+                udpshared_handoff_or_close(port);
+        }
+        else if (!port->up_polling && port->up_owner == pd_this)
+        {
+            sys_addpollfn(port->up_fd, (t_fdpollfn)udpshared_poll, port);
+            port->up_polling = 1;
+        }
+    }
+    else if (port->up_fd >= 0)
+        udpshared_handoff_or_close(port);
+    else if (!port->up_subs && !port->up_inpoll && !port->up_adopt_pending)
+        t_freebytes(port, sizeof(*port));
+    udpshared_unlock();
+}
+
+static void udpshared_fanout(t_udpport *port, const char *data, int size,
+    const struct sockaddr *from)
+{
+    struct _udpsub *s, **local = 0;
+    int nlocal = 0, i;
+    udpshared_lock();
+    if (port->up_fd < 0)
+    {
+        udpshared_unlock();
+        return;
+    }
+    for (s = port->up_subs; s; s = s->sub_next)
+        if (s->sub_instance == pd_this)
+            nlocal++;
+    if (nlocal)
+        local = (struct _udpsub **)t_getbytes(nlocal * sizeof(*local));
+    i = 0;
+    for (s = port->up_subs; s; s = s->sub_next)
+    {
+        if (s->sub_instance == pd_this)
+        {
+            if (local)
+            {
+                local[i++] = s;
+                s->sub_refs++;
+            }
+        }
+        else
+            udpshared_queue_deliver(s, data, size, from);
+    }
+    udpshared_unlock();
+    for (i = 0; i < nlocal; i++)
+    {
+        t_netreceive *x;
+        udpshared_lock();
+        x = local[i]->sub_obj;
+        udpshared_unlock();
+        if (x)
+            udpshared_deliver_one(x, data, size, from);
+        udpshared_lock();
+        local[i]->sub_refs--;
+        if (local[i]->sub_refs <= 0)
+            t_freebytes(local[i], sizeof(*local[i]));
+        udpshared_unlock();
+    }
+    if (local)
+        t_freebytes(local, nlocal * sizeof(*local));
+}
+
+static void udpshared_poll(t_udpport *port, int fd)
+{
+    char *inbuf = (char *)sys_getrecvbuf(0);
+    int readbytes = 0;
+    udpshared_lock();
+    port->up_inpoll++;
+    udpshared_unlock();
+    while (1)
+    {
+        struct sockaddr_storage from;
+        socklen_t fromlen = sizeof(from);
+        int ret = (int)recvfrom(fd, inbuf, NET_MAXPACKETSIZE - 1, 0,
+            (struct sockaddr *)&from, &fromlen);
+        if (ret < 0)
+        {
+            if (socket_errno_udp())
+                sys_sockerror("recv (udp)");
+            break;
+        }
+        if (ret == 0)
+            break;
+        if (ret > NET_MAXPACKETSIZE - 1)
+        {
+            post("warning: incoming UDP packet truncated from %d to %d bytes.",
+                ret, NET_MAXPACKETSIZE - 1);
+            ret = NET_MAXPACKETSIZE - 1;
+        }
+        udpshared_fanout(port, inbuf, ret, (struct sockaddr *)&from);
+        readbytes += ret;
+        if (readbytes >= NET_MAXPACKETSIZE)
+            break;
+        if (socket_bytes_available(fd) <= 0)
+            break;
+        if (port->up_fd != fd || !port->up_polling || port->up_owner != pd_this)
+            break;
+    }
+    udpshared_lock();
+    port->up_inpoll--;
+    if (port->up_fd < 0 && !port->up_subs && !port->up_inpoll &&
+        !port->up_adopt_pending)
+        t_freebytes(port, sizeof(*port));
+    udpshared_unlock();
+}
+
+static void udpshared_unsubscribe(t_netreceive *x)
+{
+    struct _udpsub *s = x->x_udpsub;
+    t_udpport *port;
+    struct _udpsub **sp;
+    if (!s)
+        return;
+    x->x_udpsub = NULL;
+    port = s->sub_port;
+    udpshared_lock();
+    udpshared_leave_locked(port, s);
+    for (sp = &port->up_subs; *sp; sp = &(*sp)->sub_next)
+        if (*sp == s)
+        {
+            *sp = s->sub_next;
+            break;
+        }
+    s->sub_obj = NULL;
+    s->sub_refs--;
+    if (s->sub_refs <= 0)
+        t_freebytes(s, sizeof(*s));
+    if (port->up_fd >= 0 && !udpshared_has_instance(port, port->up_owner))
+        udpshared_handoff_or_close(port);
+    udpshared_unlock();
+}
+
+    /* returns 1 if this object subscribed to a socket that already existed */
+static int udpshared_try_existing(t_netreceive *x, int portno, const char *hostname)
+{
+    struct addrinfo *ailist = 0, *ai;
+    char bindhost[INET6_ADDRSTRLEN];
+    struct sockaddr_storage group;
+    int family, multicast = 0, status, joinerr = 0, err = 0;
+    char errbuf[MAXPDSTRING];
+    t_udpport *port;
+    status = addrinfo_get_list(&ailist, hostname, portno, SOCK_DGRAM);
+    if (status != 0 || !ailist)
+    {
+        if (ailist)
+            freeaddrinfo(ailist);
+        return 0;
+    }
+    addrinfo_sort_list(&ailist,
+        hostname ? addrinfo_ipv4_first : addrinfo_ipv6_first);
+    ai = ailist;
+    family = ai->ai_family;
+    multicast = (hostname && sockaddr_is_multicast(ai->ai_addr));
+    if (multicast)
+        memcpy(&group, ai->ai_addr, ai->ai_addrlen);
+    udpshared_bindkey(family, !hostname || multicast, ai->ai_addr,
+        bindhost, sizeof(bindhost));
+    freeaddrinfo(ailist);
+    udpshared_lock();
+    port = udpshared_find(portno, family, bindhost);
+    if (!port)
+    {
+        udpshared_unlock();
+        return 0;
+    }
+    if (multicast)
+        joinerr = udpshared_join_locked(port, (struct sockaddr *)&group,
+            &err, errbuf, sizeof(errbuf));
+    udpshared_addsub(port, x, multicast, multicast ? (struct sockaddr *)&group : 0);
+    udpshared_unlock();
+    if (joinerr)
+        pd_error(x, "netreceive: joining multicast group %s failed: %s (%d)",
+            hostname ? hostname : "", errbuf, err);
+    logpost(NULL, PD_VERBOSE, "sharing UDP port %d", portno);
+    return 1;
+}
+
+static void udpshared_take_socket(t_netreceive *x, int fd, int portno,
+    int family, const char *bindhost, int multicast,
+    const struct sockaddr *group, const char *hostname)
+{
+    t_udpport *port;
+    int joinerr = 0, err = 0;
+    char errbuf[MAXPDSTRING];
+    udpshared_lock();
+    port = udpshared_find(portno, family, bindhost);
+    if (port)
+    {
+        sys_closesocket(fd);
+        if (multicast && group)
+            joinerr = udpshared_join_locked(port, group,
+                &err, errbuf, sizeof(errbuf));
+        udpshared_addsub(port, x, multicast, group);
+        udpshared_unlock();
+        if (joinerr)
+            pd_error(x, "netreceive: joining multicast group %s failed: %s (%d)",
+                hostname ? hostname : "", errbuf, err);
+        logpost(NULL, PD_VERBOSE, "sharing UDP port %d", portno);
+        return;
+    }
+    port = (t_udpport *)t_getbytes(sizeof(*port));
+    port->up_port = portno;
+    port->up_family = family;
+    strncpy(port->up_bindhost, bindhost, sizeof(port->up_bindhost) - 1);
+    port->up_bindhost[sizeof(port->up_bindhost) - 1] = 0;
+    port->up_fd = fd;
+    port->up_owner = pd_this;
+    port->up_next = udpshared_ports;
+    udpshared_ports = port;
+    udpshared_addsub(port, x, multicast, group);
+    sys_addpollfn(fd, (t_fdpollfn)udpshared_poll, port);
+    port->up_polling = 1;
+    udpshared_unlock();
+}
+
 static void netreceive_closeall(t_netreceive *x)
 {
     int i;
+    if (x->x_udpsub)
+        udpshared_unsubscribe(x);
     for (i = 0; i < x->x_nconnections; i++)
     {
         sys_rmpollfn(x->x_connections[i]);
@@ -646,7 +1218,7 @@ static void netreceive_closeall(t_netreceive *x)
 
 static void netreceive_listen(t_netreceive *x, t_symbol *s, int argc, t_atom *argv)
 {
-    int portno = 0, sockfd, status, protocol = x->x_ns.x_protocol, multicast = 0;
+    int portno = 0, sockfd = -1, status, protocol = x->x_ns.x_protocol, multicast = 0;
     struct addrinfo *ailist = NULL, *ai;
     const char *hostname = NULL; /* allowed or UDP multicast hostname */
 
@@ -665,6 +1237,8 @@ static void netreceive_listen(t_netreceive *x, t_symbol *s, int argc, t_atom *ar
         postatom(argc, argv); endpost();
     }
     if (portno <= 0)
+        return;
+    if (protocol == SOCK_DGRAM && udpshared_try_existing(x, portno, hostname))
         return;
     status = addrinfo_get_list(&ailist, hostname, portno, protocol);
     if (status != 0)
@@ -797,38 +1371,47 @@ static void netreceive_listen(t_netreceive *x, t_symbol *s, int argc, t_atom *ar
             logpost(NULL, PD_VERBOSE, "listening on %d", portno);
         break;
     }
-    freeaddrinfo(ailist);
-
-    /* confirm that socket/bind worked */
-    if (sockfd < 0)
+    /* copy the bound address before ailist (and ai) is freed */
     {
-        int err = socket_errno();
-        char buf[MAXPDSTRING];
-        socket_strerror(err, buf, sizeof(buf));
-        pd_error(x, "netreceive: listen failed: %s (%d)",
-            buf, err);
-        return;
-    }
-    x->x_ns.x_sockfd = sockfd;
-
-    if (protocol == SOCK_DGRAM) /* datagram protocol */
-    {
-        if (x->x_ns.x_bin)
-            sys_addpollfn(x->x_ns.x_sockfd, (t_fdpollfn)netsend_readbin, x);
-        else
+        int boundfamily = 0;
+        char udpbindhost[INET6_ADDRSTRLEN];
+        struct sockaddr_storage udpgroup;
+        udpbindhost[0] = 0;
+        memset(&udpgroup, 0, sizeof(udpgroup));
+        if (sockfd >= 0 && protocol == SOCK_DGRAM)
         {
-                /* a UDP receiver doesn't get notifications! */
-            t_socketreceiver *y = socketreceiver_new(x, 0,
-                    (x->x_ns.x_msgout ? netsend_read : 0), 1);
-            if (x->x_ns.x_fromout)
-                socketreceiver_set_fromaddrfn(y,
-                    (t_socketfromaddrfn)netreceive_fromaddr);
-            sys_addpollfn(x->x_ns.x_sockfd, (t_fdpollfn)socketreceiver_read, y);
-            x->x_ns.x_connectout = 0;
-            x->x_ns.x_receiver = y;
+            boundfamily = ai->ai_family;
+            udpshared_bindkey(boundfamily, !hostname || multicast,
+                ai->ai_addr, udpbindhost, sizeof(udpbindhost));
+            if (multicast)
+                memcpy(&udpgroup, ai->ai_addr, ai->ai_addrlen);
+        }
+        freeaddrinfo(ailist);
+
+        /* confirm that socket/bind worked */
+        if (sockfd < 0)
+        {
+            int err = socket_errno();
+            char buf[MAXPDSTRING];
+                /* another listener in this process may have won the bind */
+            if (protocol == SOCK_DGRAM &&
+                udpshared_try_existing(x, portno, hostname))
+                return;
+            socket_strerror(err, buf, sizeof(buf));
+            pd_error(x, "netreceive: listen failed: %s (%d)",
+                buf, err);
+            return;
+        }
+        if (protocol == SOCK_DGRAM) /* shared with other listeners on this port */
+        {
+            udpshared_take_socket(x, sockfd, portno, boundfamily, udpbindhost,
+                multicast, multicast ? (struct sockaddr *)&udpgroup : 0,
+                hostname);
+            return;
         }
     }
-    else /* streaming protocol */
+    x->x_ns.x_sockfd = sockfd;
+    /* streaming protocol */
     {
         if (listen(x->x_ns.x_sockfd, 5) < 0)
         {
@@ -871,6 +1454,7 @@ static void *netreceive_new(t_symbol *s, int argc, t_atom *argv)
     x->x_nconnections = 0;
     x->x_connections = (int *)t_getbytes(0);
     x->x_receivers = (t_socketreceiver **)t_getbytes(0);
+    x->x_udpsub = 0;
     x->x_ns.x_sockfd = -1;
     if (argc && argv->a_type == A_FLOAT)
     {
