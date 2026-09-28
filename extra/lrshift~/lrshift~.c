@@ -1,4 +1,5 @@
 #include "m_pd.h"
+#include <string.h>
 
 /* ------------------------ lrshift~ ----------------------------- */
 
@@ -17,12 +18,10 @@ static t_int *leftshift_perform(t_int *w)
     t_sample *out= (t_sample *)(w[2]);
     int n = (int)(w[3]);
     int shift = (int)(w[4]);
-    in += shift;
-    n -= shift;
-    while (n--)
-        *out++ = *in++;
-    while (shift--)
-        *out++ = 0;
+    int ncopy = n - shift;
+        /* move before clearing so an in-place buffer stays intact */
+    memmove(out, in + shift, ncopy * sizeof(*out));
+    memset(out + ncopy, 0, shift * sizeof(*out));
     return (w+5);
 }
 
@@ -32,12 +31,9 @@ static t_int *rightshift_perform(t_int *w)
     t_sample *out= (t_sample *)(w[2]);
     int n = (int)(w[3]);
     int shift = (int)(w[4]);
-    n -= shift;
-    in -= shift;
-    while (n--)
-        *--out = *--in;
-    while (shift--)
-        *--out = 0;
+    int ncopy = n - shift;
+    memmove(out + shift, in, ncopy * sizeof(*out));
+    memset(out, 0, shift * sizeof(*out));
     return (w+5);
 }
 
@@ -53,8 +49,8 @@ static void lrshift_tilde_dsp(t_lrshift_tilde *x, t_signal **sp)
     for (i = 0; i < sp[0]->s_nchans; i++)
     {
         if (shift < 0)
-            dsp_add(rightshift_perform, 4,  sp[0]->s_vec + i*n + n,
-                sp[1]->s_vec + i*n + n, (t_int)n, (t_int)(-shift));
+            dsp_add(rightshift_perform, 4, sp[0]->s_vec + i*n,
+                sp[1]->s_vec + i*n, (t_int)n, (t_int)(-shift));
         else dsp_add(leftshift_perform, 4, sp[0]->s_vec + i*n,
             sp[1]->s_vec + i*n, (t_int)n, (t_int)shift);
     }
