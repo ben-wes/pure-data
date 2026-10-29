@@ -13,7 +13,7 @@
 
 void canvas_undo_set_name(const char*name);
 
-/* --------- 12. internal object state --------------- */
+/* --------- 14. internal object state --------------- */
 int glist_getindex(t_glist *x, t_gobj *y);
 static t_gobj *glist_nth(t_glist *x, int n)
 {
@@ -240,7 +240,8 @@ static int canvas_undo_doit(t_canvas *x, t_undo_action *udo, int action, const c
     case UNDO_CREATE:       return canvas_undo_create(x, udo->data, action);       //create
     case UNDO_RECREATE:     return canvas_undo_recreate(x, udo->data, action);     //recreate
     case UNDO_FONT:         return canvas_undo_font(x, udo->data, action);         //font
-    case UNDO_OBJECT_STATE: return canvas_undo_objectstate(x, udo->data, action);  //font
+    case UNDO_OBJECT_STATE: return canvas_undo_objectstate(x, udo->data, action);  //object state
+    case UNDO_RESIZE:       return canvas_undo_resize(x, udo->data, action);       //resize
             /* undo sequences are handled in canvas_undo_undo resp canvas_undo_redo */
     case UNDO_SEQUENCE_START: return 1;                                            //start undo sequence
     case UNDO_SEQUENCE_END: return 1;                                              //end undo sequence

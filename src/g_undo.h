@@ -42,6 +42,7 @@ Types of undo data:
 12 - meta: start undo sequence (undo sequences are undone/redone atomically)
 13 - meta: end undo sequence
 14 - internal object state
+15 - resize
 */
 
 #include "m_pd.h"
@@ -63,6 +64,7 @@ typedef enum
     UNDO_SEQUENCE_START, /* 12 start an atomic sequence of undo actions*/
     UNDO_SEQUENCE_END,   /* 13 end an atomic sequence of undo actions */
     UNDO_OBJECT_STATE,  /* 14: internal object state: t_atom-list to send to the object */
+    UNDO_RESIZE,        /* 15: resize a graph's pixel box or a box's width */
 
     UNDO_LAST
 } t_undo_type;
@@ -167,6 +169,11 @@ EXTERN int canvas_undo_recreate(t_canvas *x, void *z, int action);
 EXTERN void *canvas_undo_set_font(t_canvas *x,
     int font, t_float realresize, int whichresize);
 EXTERN int canvas_undo_font(t_canvas *x, void *z, int action);
+
+/* --------- 15. resize ---------- */
+
+EXTERN void *canvas_undo_set_resize(t_canvas *x, int n);
+EXTERN int canvas_undo_resize(t_canvas *x, void *z, int action);
 
 /* ------------------------------- */
 

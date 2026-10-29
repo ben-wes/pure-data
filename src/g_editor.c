@@ -1644,6 +1644,76 @@ int canvas_undo_font(t_canvas *x, void *z, int action)
     return 1;
 }
 
+/* --------- 15. resize ----------- */
+
+typedef struct _undo_resize
+{
+    int u_index;                /* index of the object */
+    int u_pixwidth;             /* graph width in pixels */
+    int u_pixheight;
+    int u_width;                /* box width in characters */
+} t_undo_resize;
+
+void *canvas_undo_set_resize(t_canvas *x, int n)
+{
+    t_undo_resize *buf;
+    t_gobj *obj;
+    t_object *ob;
+
+    buf = (t_undo_resize *)getbytes(sizeof(*buf));
+    buf->u_index = n;
+    obj = glist_nth(x, n);
+    if (obj)
+    {
+        ob = pd_checkobject(&obj->g_pd);
+        if (ob && ob->ob_pd == canvas_class && ((t_canvas *)ob)->gl_isgraph)
+        {
+            buf->u_pixwidth = ((t_canvas *)ob)->gl_pixwidth;
+            buf->u_pixheight = ((t_canvas *)ob)->gl_pixheight;
+        }
+        else if (ob)
+            buf->u_width = ob->te_width;
+    }
+    return (buf);
+}
+
+int canvas_undo_resize(t_canvas *x, void *z, int action)
+{
+    t_undo_resize *buf = z;
+    if (action == UNDO_UNDO || action == UNDO_REDO)
+    {
+        t_gobj *y;
+        t_object *ob;
+        int w, h;
+        if ((y = glist_nth(x, buf->u_index)) &&
+            (ob = pd_checkobject(&y->g_pd)))
+        {
+            gobj_vis(y, x, 0);
+            if (ob->ob_pd == canvas_class && ((t_canvas *)ob)->gl_isgraph)
+            {
+                w = ((t_canvas *)ob)->gl_pixwidth;
+                h = ((t_canvas *)ob)->gl_pixheight;
+                ((t_canvas *)ob)->gl_pixwidth = buf->u_pixwidth;
+                ((t_canvas *)ob)->gl_pixheight = buf->u_pixheight;
+                buf->u_pixwidth = w;
+                buf->u_pixheight = h;
+            }
+            else
+            {
+                w = ob->te_width;
+                ob->te_width = buf->u_width;
+                buf->u_width = w;
+            }
+            canvas_fixlinesfor(x, ob);
+            gobj_vis(y, x, 1);
+            glist_select(x, y);
+        }
+    }
+    else if (action == UNDO_FREE)
+        t_freebytes(buf, sizeof(*buf));
+    return 1;
+}
+
 int clone_match(t_pd *z, t_symbol *name, t_symbol *dir);
 static void canvas_cut(t_canvas *x);
 int clone_reload(t_pd *z, t_canvas *except);
@@ -2531,8 +2601,8 @@ static void canvas_doclick(t_canvas *x, int xpix, int ypix, int mod, int doit)
                     x->gl_editor->e_ywas = y1;
                     x->gl_editor->e_xnew = xpix;
                     x->gl_editor->e_ynew = ypix;
-                    canvas_undo_add(x, UNDO_APPLY, "resize",
-                        canvas_undo_set_apply(x, glist_getindex(x, hitbox)));
+                    canvas_undo_add(x, UNDO_RESIZE, "resize",
+                        canvas_undo_set_resize(x, glist_getindex(x, hitbox)));
                 }
                 else canvas_setcursor(x, CURSOR_EDITMODE_RESIZE);
             }
